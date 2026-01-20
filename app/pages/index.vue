@@ -98,6 +98,41 @@ const deleteRoom = async (id: number) => {
     })
   }
 };
+
+const resetTables = async () => {
+  const Notify = (await import('simple-notify')).default;
+  if (!confirm('Voulez-vous vraiment réinitialiser toutes les tables et réservations ? Cette action est irréversible.')) return;
+
+  try {
+    await $fetch('/api/reset-tables', { method: 'DELETE' });
+    await refreshRooms();
+    // @ts-ignore
+    new Notify({
+      status: 'success',
+      title: 'Données réinitialisées',
+      text: 'Toutes les tables et réservations ont été supprimées',
+      autoclose: true,
+      autotimeout: 1500,
+      notificationsGap: 20,
+      type: 'outline',
+      position: 'right top',
+      customClass: 'custom-notify'
+    })
+  } catch (e) {
+    // @ts-ignore
+    new Notify({
+      status: 'error',
+      title: 'Erreur',
+      text: 'Erreur lors de la réinitialisation',
+      autoclose: true,
+      autotimeout: 3000,
+      notificationsGap: 20,
+      type: 'outline',
+      position: 'right top',
+      customClass: 'custom-notify'
+    })
+  }
+};
 </script>
 
 <template>
@@ -136,6 +171,7 @@ const deleteRoom = async (id: number) => {
           <span v-if="view === 'builder'" class="delete-icon" @click.stop="deleteRoom(room.id)">×</span>
         </button>
         <button v-if="view === 'builder'" class="btn btn-sm btn-secondary add-room" @click="createRoom">+ Nouvelle Salle</button>
+        <button v-if="view === 'builder'" class="btn btn-sm btn-danger" @click="resetTables">Réinitialiser tout</button>
       </div>
     </div>
 
