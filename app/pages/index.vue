@@ -1,10 +1,17 @@
 <script setup lang="ts">
 import 'simple-notify/dist/simple-notify.css'
+import { nextTick } from 'vue'
 
 const view = ref<'builder' | 'reservation' | 'reservations_list'>('builder');
 
 const { data: rooms, refresh: refreshRooms } = await useFetch('/api/rooms');
 const selectedRoomId = ref<number | null>(null);
+const showResetModal = ref(false);
+const showDeleteRoomModal = ref(false);
+const roomToDeleteId = ref<number | null>(null);
+const showCreateRoomModal = ref(false);
+const newRoomName = ref('');
+const newRoomInput = ref<HTMLInputElement | null>(null);
 
 const selectedRoom = computed(() => {
   return rooms.value?.find(r => r.id === selectedRoomId.value) || null;
@@ -18,10 +25,19 @@ onMounted(() => {
 });
 
 const createRoom = async () => {
-  const Notify = (await import('simple-notify')).default;
-  const name = prompt('Nom de la nouvelle salle');
+  newRoomName.value = '';
+  showCreateRoomModal.value = true;
+  await nextTick();
+  newRoomInput.value?.focus();
+};
 
-  if (!name) return;
+const confirmCreateRoom = async () => {
+  if (!newRoomName.value.trim()) return;
+
+  const name = newRoomName.value;
+  showCreateRoomModal.value = false;
+  
+  const Notify = (await import('simple-notify')).default;
   
   try {
     const res = await $fetch('/api/room', {
@@ -63,8 +79,18 @@ const createRoom = async () => {
 };
 
 const deleteRoom = async (id: number) => {
+  roomToDeleteId.value = id;
+  showDeleteRoomModal.value = true;
+};
+
+const confirmDeleteRoom = async () => {
+  if (roomToDeleteId.value === null) return;
+  
+  const id = roomToDeleteId.value;
+  showDeleteRoomModal.value = false;
+  roomToDeleteId.value = null;
+
   const Notify = (await import('simple-notify')).default;
-  if (!confirm('Voulez-vous vraiment supprimer cette salle ?')) return;
   
   try {
     await $fetch(`/api/rooms?id=${id}`, { method: 'DELETE' });
@@ -100,12 +126,24 @@ const deleteRoom = async (id: number) => {
 };
 
 const resetTables = async () => {
+  showResetModal.value = true;
+};
+
+const confirmReset = async () => {
+  showResetModal.value = false;
   const Notify = (await import('simple-notify')).default;
-  if (!confirm('Voulez-vous vraiment réinitialiser toutes les tables et réservations ? Cette action est irréversible.')) return;
 
   try {
     await $fetch('/api/reset-tables', { method: 'DELETE' });
+    
+    // Forcer le rechargement de la salle sélectionnée pour mettre à jour les composants enfants
+    const currentId = selectedRoomId.value;
+    selectedRoomId.value = null;
+    await nextTick();
+    selectedRoomId.value = currentId;
+    
     await refreshRooms();
+    
     // @ts-ignore
     new Notify({
       status: 'success',
@@ -194,6 +232,59 @@ const resetTables = async () => {
     <div v-else class="no-room">
       <p>Veuillez sélectionner ou créer une salle pour commencer.</p>
     </div>
+
+    <!-- Modal de confirmation de réinitialisation -->
+    <Teleport to="body">
+      <div v-if="showResetModal" class="modal-overlay" @click="showResetModal = false">
+        <div class="modal-content" @click.stop>
+          <h3>Confirmer la réinitialisation</h3>
+          <p>Voulez-vous vraiment réinitialiser toutes les tables et réservations ? Cette action est irréversible.</p>
+          <div class="modal-actions">
+            <button class="btn btn-secondary" @click="showResetModal = false">Annuler</button>
+            <button class="btn btn-danger" @click="confirmReset">Réinitialiser tout</button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- Modal de confirmation de suppression de salle -->
+    <Teleport to="body">
+      <div v-if="showDeleteRoomModal" class="modal-overlay" @click="showDeleteRoomModal = false">
+        <div class="modal-content" @click.stop>
+          <h3>Confirmer la suppression</h3>
+          <p>Voulez-vous vraiment supprimer cette salle ? Cette action est irréversible.</p>
+          <div class="modal-actions">
+            <button class="btn btn-secondary" @click="showDeleteRoomModal = false">Annuler</button>
+            <button class="btn btn-danger" @click="confirmDeleteRoom">Supprimer</button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- Modal de création de salle -->
+    <Teleport to="body">
+      <div v-if="showCreateRoomModal" class="modal-overlay" @click="showCreateRoomModal = false">
+        <div class="modal-content" @click.stop>
+          <h3>Nouvelle salle</h3>
+          <div class="form-group">
+            <label for="roomName">Nom de la salle</label>
+            <input 
+              id="roomName"
+              v-model="newRoomName" 
+              type="text" 
+              class="form-control" 
+              placeholder="Ex: Salle Principale"
+              @keyup.enter="confirmCreateRoom"
+              ref="newRoomInput"
+            >
+          </div>
+          <div class="modal-actions">
+            <button class="btn btn-secondary" @click="showCreateRoomModal = false">Annuler</button>
+            <button class="btn btn-primary" :disabled="!newRoomName.trim()" @click="confirmCreateRoom">Créer</button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
@@ -340,5 +431,78 @@ main {
 
 .notify-container {
   margin-right: 20px;
+}
+
+/* Modal Styles */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.modal-content {
+  background: white;
+  padding: 2rem;
+  border-radius: 8px;
+  max-width: 400px;
+  width: 90%;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.modal-content h3 {
+  margin-top: 0;
+  color: #1a1a1a;
+}
+
+.modal-content p {
+  color: #4b5563;
+  line-height: 1.5;
+  margin: 1rem 0 2rem;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 1rem;
+}
+
+.form-group {
+  margin-bottom: 1.5rem;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+  color: #374151;
+}
+
+.form-control {
+  width: 100%;
+  padding: 0.625rem 0.75rem;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  color: #1f2937;
+  background-color: #fff;
+  background-clip: padding-box;
+  border: 1px solid #d1d5db;
+  border-radius: 0.375rem;
+  transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+  box-sizing: border-box;
+}
+
+.form-control:focus {
+  color: #111827;
+  background-color: #fff;
+  border-color: #2563eb;
+  outline: 0;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
 }
 </style>

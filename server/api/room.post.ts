@@ -73,13 +73,9 @@ export default defineEventHandler(async (event) => {
     await db.delete(tables).where(inArray(tables.id, tablesToDelete))
   }
 
-  console.log(tablesFromRequest)
-
   // 3. Mettre à jour ou insérer les tables et chaises
   for (const tableData of tablesFromRequest) {
     let currentTableId = tableData.id
-
-    console.log(tableData.extraAttributes)
 
     const tableValues = {
       roomId,
