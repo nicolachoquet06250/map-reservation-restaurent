@@ -101,6 +101,10 @@ const deleteRoom = async (id: number) => {
 </script>
 
 <template>
+  <Head>
+    <Title>Carte de réservation en restaurent - POC</Title>
+  </Head>
+
   <div class="app">
     <header class="app-header">
       <div class="logo">RestauBuilder</div>
