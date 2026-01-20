@@ -1,0 +1,1 @@
+ALTER TABLE `tables` ADD `extra_attributes` json;

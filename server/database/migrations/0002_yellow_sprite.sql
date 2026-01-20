@@ -1,0 +1,1 @@
+ALTER TABLE `tables` ADD `rotation` float DEFAULT 0;
