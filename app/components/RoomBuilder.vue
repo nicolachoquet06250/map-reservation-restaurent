@@ -37,7 +37,7 @@ const props = defineProps<{
   roomName: string;
 }>();
 
-const tables = ref<Table[]>([]);
+const _tables = ref<Table[]>([]);
 const roomName = ref(props.roomName);
 const zoomLevel = ref(1);
 const panOffset = ref({ x: 0, y: 0 });
@@ -47,7 +47,7 @@ const undoStack = ref<string[]>([]);
 const redoStack = ref<string[]>([]);
 
 const takeSnapshot = () => {
-  undoStack.value.push(JSON.stringify(tables.value));
+  undoStack.value.push(JSON.stringify(_tables.value));
   redoStack.value = []; // Clear redo stack on new action
   if (undoStack.value.length > 50) { // Limit history size
     undoStack.value.shift();
@@ -56,20 +56,20 @@ const takeSnapshot = () => {
 
 const undo = () => {
   if (undoStack.value.length > 0) {
-    redoStack.value.push(JSON.stringify(tables.value));
+    redoStack.value.push(JSON.stringify(_tables.value));
     const previousState = undoStack.value.pop();
     if (previousState) {
-      tables.value = JSON.parse(previousState);
+      _tables.value = JSON.parse(previousState);
     }
   }
 };
 
 const redo = () => {
   if (redoStack.value.length > 0) {
-    undoStack.value.push(JSON.stringify(tables.value));
+    undoStack.value.push(JSON.stringify(_tables.value));
     const nextState = redoStack.value.pop();
     if (nextState) {
-      tables.value = JSON.parse(nextState);
+      _tables.value = JSON.parse(nextState);
     }
   }
 };
@@ -108,7 +108,7 @@ const loadRoom = async () => {
       }[]
     }>(`/api/room?id=${props.roomId}`);
     if (data && data.tables) {
-      tables.value = data.tables.map((t: any) => ({
+      _tables.value = data.tables.map((t: any) => ({
         ...t,
         extraAttributes: t.extraAttributes || {
           lThicknessX: 40,
@@ -118,11 +118,11 @@ const loadRoom = async () => {
         }
       })) as Table[];
     } else {
-      tables.value = [];
+      _tables.value = [];
     }
   } catch (e) {
     console.log('Aucun plan existant ou erreur de chargement');
-    tables.value = [];
+    _tables.value = [];
   }
 };
 const selectedTableIndex = ref<number | null>(null);
@@ -130,8 +130,8 @@ const selectedChairIndex = ref<{ tableIndex: number, chairIndex: number } | null
 
 const addTable = () => {
   takeSnapshot();
-  tables.value.push({
-    name: `Table ${tables.value.length + 1}`,
+  _tables.value.push({
+    name: `Table ${_tables.value.length + 1}`,
     x: 50,
     y: 50,
     width: 100,
@@ -146,13 +146,13 @@ const addTable = () => {
     },
     chairs: ([] as Chair[])
   });
-  selectedTableIndex.value = tables.value.length - 1;
+  selectedTableIndex.value = _tables.value.length - 1;
   selectedChairIndex.value = null;
 };
 
 const addChair = (tableIndex: number) => {
   takeSnapshot();
-  const table = tables.value[tableIndex];
+  const table = _tables.value[tableIndex];
   if (table?.chairs === null) {
     table.chairs = [];
   }
@@ -169,7 +169,7 @@ const addChair = (tableIndex: number) => {
 
 const removeTable = async (index: number) => {
   takeSnapshot();
-  const table = tables.value[index];
+  const table = _tables.value[index];
   if (table?.chairs.some((c: any) => c.isReserved)) {
     const Notify = (await import('simple-notify')).default;
     // @ts-ignore
@@ -186,14 +186,14 @@ const removeTable = async (index: number) => {
     });
     return;
   }
-  tables.value.splice(index, 1);
+  _tables.value.splice(index, 1);
   selectedTableIndex.value = null;
   selectedChairIndex.value = null;
 };
 
 const removeChair = async (tableIndex: number, chairIndex: number) => {
   takeSnapshot();
-  const chair = tables.value[tableIndex]?.chairs[chairIndex] as any;
+  const chair = _tables.value[tableIndex]?.chairs[chairIndex] as any;
   if (chair?.isReserved) {
     const Notify = (await import('simple-notify')).default;
     // @ts-ignore
@@ -210,7 +210,7 @@ const removeChair = async (tableIndex: number, chairIndex: number) => {
     });
     return;
   }
-  tables.value[tableIndex]?.chairs.splice(chairIndex, 1);
+  _tables.value[tableIndex]?.chairs.splice(chairIndex, 1);
   selectedChairIndex.value = null;
 };
 
@@ -238,7 +238,7 @@ const startDragTable = (event: MouseEvent, index: number) => {
   draggingTable.value = index;
   selectedTableIndex.value = index;
   selectedChairIndex.value = null;
-  const table = tables.value[index];
+  const table = _tables.value[index];
   offset.x = event.clientX / zoomLevel.value - (table?.x ?? 0) - panOffset.value.x;
   offset.y = event.clientY / zoomLevel.value - (table?.y ?? 0) - panOffset.value.y;
 };
@@ -249,7 +249,7 @@ const startDragChair = (event: MouseEvent, tableIndex: number, chairIndex: numbe
   draggingChair.value = { tableIndex, chairIndex };
   selectedChairIndex.value = { tableIndex, chairIndex };
   selectedTableIndex.value = tableIndex;
-  const chair = tables.value[tableIndex]?.chairs[chairIndex];
+  const chair = _tables.value[tableIndex]?.chairs[chairIndex];
   offset.x = event.clientX / zoomLevel.value - (chair?.x ?? 0) - panOffset.value.x;
   offset.y = event.clientY / zoomLevel.value - (chair?.y ?? 0) - panOffset.value.y;
 };
@@ -261,7 +261,7 @@ const startRotateTable = (event: MouseEvent, index: number) => {
   selectedTableIndex.value = index;
   selectedChairIndex.value = null;
   
-  const table = tables.value[index];
+  const table = _tables.value[index];
   const centerX = (table?.x ?? 0) + (table?.width ?? 0) / 2 + panOffset.value.x;
   const centerY = (table?.y ?? 0) + (table?.height ?? 0) / 2 + panOffset.value.y;
 
@@ -276,7 +276,7 @@ const startRotateChair = (event: MouseEvent, tableIndex: number, chairIndex: num
   selectedChairIndex.value = { tableIndex, chairIndex };
   selectedTableIndex.value = tableIndex;
   
-  const chair = tables.value[tableIndex]?.chairs[chairIndex];
+  const chair = _tables.value[tableIndex]?.chairs[chairIndex];
   const centerX = (chair?.x ?? 0) + 15 + panOffset.value.x;
   const centerY = (chair?.y ?? 0) + 15 + panOffset.value.y;
 
@@ -291,7 +291,7 @@ const onMouseMove = (event: MouseEvent) => {
     return;
   }
   if (draggingTable.value !== null) {
-    const table = tables.value[draggingTable.value];
+    const table = _tables.value[draggingTable.value];
     const oldX = table?.x ?? 0;
     const oldY = table?.y ?? 0;
     table!.x = event.clientX / zoomLevel.value - offset.x - panOffset.value.x;
@@ -308,7 +308,7 @@ const onMouseMove = (event: MouseEvent) => {
     }
   } else if (draggingChair.value !== null) {
     const { tableIndex, chairIndex } = draggingChair.value;
-    const table = tables.value[tableIndex];
+    const table = _tables.value[tableIndex];
     const chair = table?.chairs[chairIndex];
     chair!.x = event.clientX / zoomLevel.value - offset.x - panOffset.value.x;
     chair!.y = event.clientY / zoomLevel.value - offset.y - panOffset.value.y;
@@ -316,7 +316,7 @@ const onMouseMove = (event: MouseEvent) => {
     chair!.relativeX = (chair?.x ?? 0) - (table?.x ?? 0);
     chair!.relativeY = (chair?.y ?? 0) - (table?.y ?? 0);
   } else if (rotatingTable.value !== null) {
-    const table = tables.value[rotatingTable.value];
+    const table = _tables.value[rotatingTable.value];
     const centerX = (table?.x ?? 0) + (table?.width ?? 0) / 2 + panOffset.value.x;
     const centerY = (table?.y ?? 0) + (table?.height ?? 0) / 2 + panOffset.value.y;
     
@@ -326,7 +326,7 @@ const onMouseMove = (event: MouseEvent) => {
     table!.rotation = (initialTableRotation.value + deltaAngle) % 360;
   } else if (rotatingChair.value !== null) {
     const { tableIndex, chairIndex } = rotatingChair.value;
-    const chair = tables.value[tableIndex]?.chairs[chairIndex];
+    const chair = _tables.value[tableIndex]?.chairs[chairIndex];
     const centerX = (chair?.x ?? 0) + 15 + panOffset.value.x;
     const centerY = (chair?.y ?? 0) + 15 + panOffset.value.y;
     
@@ -423,7 +423,7 @@ const handleKeyDown = (event: KeyboardEvent) => {
 
 const duplicateChair = (tableIndex: number, chairIndex: number) => {
   takeSnapshot();
-  const chair = tables.value[tableIndex]?.chairs[chairIndex];
+  const chair = _tables.value[tableIndex]?.chairs[chairIndex];
   if (!chair) return;
 
   const newChair = JSON.parse(JSON.stringify(chair));
@@ -433,12 +433,12 @@ const duplicateChair = (tableIndex: number, chairIndex: number) => {
   newChair.relativeX += 10;
   newChair.relativeY += 10;
   
-  tables.value[tableIndex].chairs.push(newChair);
-  selectedChairIndex.value = { tableIndex, chairIndex: tables.value[tableIndex].chairs.length - 1 };
+  _tables.value[tableIndex]?.chairs.push(newChair);
+  selectedChairIndex.value = { tableIndex, chairIndex: _tables.value[tableIndex]!.chairs.length - 1 };
 };
 
 const copyChair = (tableIndex: number, chairIndex: number) => {
-  const chair = tables.value[tableIndex]?.chairs[chairIndex];
+  const chair = _tables.value[tableIndex]?.chairs[chairIndex];
   if (!chair) return;
 
   const copyData = JSON.parse(JSON.stringify(chair));
@@ -452,7 +452,7 @@ const copyChair = (tableIndex: number, chairIndex: number) => {
 
 const duplicateTable = (index: number) => {
   takeSnapshot();
-  const table = tables.value[index];
+  const table = _tables.value[index];
   const newTable = JSON.parse(JSON.stringify(table));
   delete newTable.id;
   newTable.name = `${table?.name} (copie)`;
@@ -467,13 +467,13 @@ const duplicateTable = (index: number) => {
     chair.rotation = chair.rotation || 0;
   });
   
-  tables.value.push(newTable);
-  selectedTableIndex.value = tables.value.length - 1;
+  _tables.value.push(newTable);
+  selectedTableIndex.value = _tables.value.length - 1;
   selectedChairIndex.value = null;
 };
 
 const copyTable = (index: number) => {
-  const table = tables.value[index];
+  const table = _tables.value[index];
   const copyData = JSON.parse(JSON.stringify(table));
   delete copyData.id;
   copyData.chairs.forEach((c: any) => delete c.id);
@@ -504,10 +504,10 @@ const pasteFromClipboard = async () => {
         newChair.relativeY += 10;
         newChair.rotation = newChair.rotation || 0;
         
-        tables.value[selectedTableIndex.value].chairs.push(newChair);
+        _tables.value[selectedTableIndex.value]?.chairs.push(newChair);
         selectedChairIndex.value = { 
           tableIndex: selectedTableIndex.value, 
-          chairIndex: tables.value[selectedTableIndex.value].chairs.length - 1 
+          chairIndex: _tables.value[selectedTableIndex.value]!.chairs.length - 1
         };
       }
       return;
@@ -526,8 +526,8 @@ const pasteFromClipboard = async () => {
         chair.rotation = chair.rotation || 0;
       });
       
-      tables.value.push(newTable);
-      selectedTableIndex.value = tables.value.length - 1;
+      _tables.value.push(newTable);
+      selectedTableIndex.value = _tables.value.length - 1;
       selectedChairIndex.value = null;
     }
   } catch (err) {
@@ -542,7 +542,7 @@ const save = async () => {
       method: 'POST',
       body: { 
         roomName: roomName.value,
-        tables: tables.value 
+        tables: _tables.value
       }
     });
     // @ts-ignore
@@ -617,7 +617,7 @@ const onWheel = (event: WheelEvent) => {
     </div>
 
     <div class="canvas-area">
-      <svg width="100%" height="600" class="canvas-svg" :class="{ interacting: isInteracting }" @mousedown="deselect">
+      <svg width="100%" height="100%" class="canvas-svg" :class="{ interacting: isInteracting }" @mousedown="deselect">
         <defs>
           <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">
             <path d="M 20 0 L 0 0 0 20" fill="none" stroke="#eee" stroke-width="1"/>
@@ -626,7 +626,7 @@ const onWheel = (event: WheelEvent) => {
         <rect width="100%" height="100%" fill="url(#grid)" class="canvas-background" :transform="`translate(${panOffset.x % 20}, ${panOffset.y % 20})`" />
 
         <g :transform="`scale(${zoomLevel}) translate(${panOffset.x}, ${panOffset.y})`">
-          <g v-for="(table, tIdx) in tables" :key="tIdx">
+          <g v-for="(table, tIdx) in _tables" :key="tIdx">
             <g :transform="`rotate(${table.rotation || 0}, ${table.x + table.width / 2}, ${table.y + table.height / 2})`">
               <!-- Table -->
               <rect
@@ -731,8 +731,8 @@ const onWheel = (event: WheelEvent) => {
       <div v-if="selectedTableIndex !== null" class="properties-panel">
         <div v-if="selectedChairIndex">
           <h3>Chaise</h3>
-          <p class="parent-info">Table: <strong>{{ tables[selectedChairIndex.tableIndex]?.name }}</strong></p>
-          <label>Rotation (°): <input type="number" v-model.number="tables[selectedChairIndex.tableIndex]!.chairs[selectedChairIndex.chairIndex]!.rotation" /></label>
+          <p class="parent-info">Table: <strong>{{ _tables[selectedChairIndex.tableIndex]?.name }}</strong></p>
+          <label>Rotation (°): <input type="number" v-model.number="_tables[selectedChairIndex.tableIndex]!.chairs[selectedChairIndex.chairIndex]!.rotation" /></label>
           <div class="actions">
             <button @click="removeChair(selectedChairIndex.tableIndex, selectedChairIndex.chairIndex)" class="btn btn-danger">Supprimer</button>
             <button @click="selectedChairIndex = null" class="btn btn-secondary">Retour</button>
@@ -740,11 +740,11 @@ const onWheel = (event: WheelEvent) => {
         </div>
         <div v-else>
           <h3>Table</h3>
-          <label>Nom: <input v-model="tables[selectedTableIndex]!.name" /></label>
+          <label>Nom: <input v-model="_tables[selectedTableIndex]!.name" /></label>
           <label>Forme:
-            <select v-model="tables[selectedTableIndex]!.shape" @change="() => {
-              if (!tables[selectedTableIndex]!.extraAttributes) {
-                tables[selectedTableIndex]!.extraAttributes = {
+            <select v-model="_tables[selectedTableIndex]!.shape" @change="() => {
+              if (!_tables[selectedTableIndex!]!.extraAttributes) {
+                _tables[selectedTableIndex!]!.extraAttributes = {
                   lThicknessX: 40,
                   lThicknessY: 40,
                   uThickness: 30,
@@ -759,19 +759,19 @@ const onWheel = (event: WheelEvent) => {
             </select>
           </label>
           <div class="properties-group">
-            <label>Largeur: <input type="number" v-model.number="tables[selectedTableIndex]!.width" /></label>
-            <label>Hauteur: <input type="number" v-model.number="tables[selectedTableIndex]!.height" /></label>
+            <label>Largeur: <input type="number" v-model.number="_tables[selectedTableIndex]!.width" /></label>
+            <label>Hauteur: <input type="number" v-model.number="_tables[selectedTableIndex]!.height" /></label>
           </div>
-          <label>Rotation (°): <input type="number" v-model.number="tables[selectedTableIndex]!.rotation" /></label>
+          <label>Rotation (°): <input type="number" v-model.number="_tables[selectedTableIndex]!.rotation" /></label>
 
-          <div v-if="tables[selectedTableIndex]?.shape === 'L'" class="properties-group">
-            <label>Épaisseur H: <input type="number" v-model.number="tables[selectedTableIndex]!.extraAttributes!.lThicknessX" /></label>
-            <label>Épaisseur V: <input type="number" v-model.number="tables[selectedTableIndex]!.extraAttributes!.lThicknessY" /></label>
+          <div v-if="_tables[selectedTableIndex]?.shape === 'L'" class="properties-group">
+            <label>Épaisseur H: <input type="number" v-model.number="_tables[selectedTableIndex]!.extraAttributes!.lThicknessX" /></label>
+            <label>Épaisseur V: <input type="number" v-model.number="_tables[selectedTableIndex]!.extraAttributes!.lThicknessY" /></label>
           </div>
 
-          <div v-if="tables[selectedTableIndex]?.shape === 'U'" class="properties-group">
-            <label>Épaisseur branches: <input type="number" v-model.number="tables[selectedTableIndex]!.extraAttributes!.uThickness" /></label>
-            <label>Épaisseur base: <input type="number" v-model.number="tables[selectedTableIndex]!.extraAttributes!.uBaseThickness" /></label>
+          <div v-if="_tables[selectedTableIndex]?.shape === 'U'" class="properties-group">
+            <label>Épaisseur branches: <input type="number" v-model.number="_tables[selectedTableIndex]!.extraAttributes!.uThickness" /></label>
+            <label>Épaisseur base: <input type="number" v-model.number="_tables[selectedTableIndex]!.extraAttributes!.uBaseThickness" /></label>
           </div>
 
           <div class="actions">
@@ -794,10 +794,11 @@ const onWheel = (event: WheelEvent) => {
 .builder-container {
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  height: 100%;
   font-family: sans-serif;
 }
 .toolbar {
+  flex-shrink: 0;
   padding: 1rem;
   background: #f4f4f4;
   display: flex;

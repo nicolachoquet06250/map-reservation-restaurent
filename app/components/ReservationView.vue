@@ -182,7 +182,7 @@ const reserve = async () => {
     </div>
 
     <div class="canvas-area">
-      <svg width="100%" height="600" class="canvas-svg" @mousemove="onMouseMove" @mouseup="onMouseUp" @mouseleave="onMouseUp" @wheel="onWheel" @mousedown="startPanning">
+      <svg width="100%" height="100%" class="canvas-svg" @mousemove="onMouseMove" @mouseup="onMouseUp" @mouseleave="onMouseUp" @wheel="onWheel" @mousedown="startPanning">
         <defs>
           <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">
             <path d="M 20 0 L 0 0 0 20" fill="none" stroke="#eee" stroke-width="1"/>

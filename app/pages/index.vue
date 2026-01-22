@@ -233,8 +233,8 @@ const confirmReset = async () => {
       <p>Veuillez sélectionner ou créer une salle pour commencer.</p>
     </div>
 
-    <!-- Modal de confirmation de réinitialisation -->
     <Teleport to="body">
+      <!-- Modal de confirmation de réinitialisation -->
       <div v-if="showResetModal" class="modal-overlay" @click="showResetModal = false">
         <div class="modal-content" @click.stop>
           <h3>Confirmer la réinitialisation</h3>
@@ -245,10 +245,8 @@ const confirmReset = async () => {
           </div>
         </div>
       </div>
-    </Teleport>
 
-    <!-- Modal de confirmation de suppression de salle -->
-    <Teleport to="body">
+      <!-- Modal de confirmation de suppression de salle -->
       <div v-if="showDeleteRoomModal" class="modal-overlay" @click="showDeleteRoomModal = false">
         <div class="modal-content" @click.stop>
           <h3>Confirmer la suppression</h3>
@@ -259,23 +257,21 @@ const confirmReset = async () => {
           </div>
         </div>
       </div>
-    </Teleport>
 
-    <!-- Modal de création de salle -->
-    <Teleport to="body">
+      <!-- Modal de création de salle -->
       <div v-if="showCreateRoomModal" class="modal-overlay" @click="showCreateRoomModal = false">
         <div class="modal-content" @click.stop>
           <h3>Nouvelle salle</h3>
           <div class="form-group">
             <label for="roomName">Nom de la salle</label>
-            <input 
-              id="roomName"
-              v-model="newRoomName" 
-              type="text" 
-              class="form-control" 
-              placeholder="Ex: Salle Principale"
-              @keyup.enter="confirmCreateRoom"
-              ref="newRoomInput"
+            <input
+                id="roomName"
+                v-model="newRoomName"
+                type="text"
+                class="form-control"
+                placeholder="Ex: Salle Principale"
+                @keyup.enter="confirmCreateRoom"
+                ref="newRoomInput"
             >
           </div>
           <div class="modal-actions">
@@ -357,8 +353,10 @@ body {
   display: flex;
   flex-direction: column;
   height: 100vh;
+  overflow: hidden;
 }
 .app-header {
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -386,6 +384,7 @@ body {
 }
 
 .room-selector-bar {
+  flex-shrink: 0;
   background: #f8fafc;
   border-bottom: 1px solid #e2e8f0;
   padding: 0.75rem 1rem;
