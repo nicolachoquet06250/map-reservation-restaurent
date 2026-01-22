@@ -233,6 +233,39 @@ const reserve = async () => {
             mask="url(#wallMaskClient)"
           />
 
+          <!-- Zones et estrades -->
+          <g v-for="(zone, zIdx) in roomData?.zones" :key="`zone-${zIdx}`">
+            <rect
+              v-for="unit in Array.from(zone.units)"
+              :key="unit"
+              :x="unit.split(',')[0]"
+              :y="unit.split(',')[1]"
+              :width="gridSize"
+              :height="gridSize"
+              :fill="zone.type === 'zone' ? '#800020' : (zone.type === 'estrade' ? '#808080' : '#4a90e2')"
+              fill-opacity="0.3"
+              stroke="white"
+              stroke-width="0.5"
+            />
+            <g v-if="zone.name" class="zone-label-group" style="opacity: 0.6;">
+              <rect
+                :x="getZoneCenter(zone.units).x - (zone.name.length * 4 + 10)"
+                :y="getZoneCenter(zone.units).y - 10"
+                :width="zone.name.length * 8 + 20"
+                :height="20"
+                rx="10"
+                class="zone-name-badge"
+              />
+              <text
+                :x="getZoneCenter(zone.units).x"
+                :y="getZoneCenter(zone.units).y"
+                class="zone-name-label"
+              >
+                {{ zone.name }}
+              </text>
+            </g>
+          </g>
+
           <!-- Portes -->
           <g v-for="(door, dIdx) in roomData?.doors" :key="`door-${dIdx}`">
             <g :transform="`rotate(${door.rotation || 0}, ${door.x + door.width / 2}, ${door.y + door.height / 2})`">
@@ -293,39 +326,6 @@ const reserve = async () => {
                   style="pointer-events: none;"
                 />
               </template>
-            </g>
-          </g>
-
-          <!-- Zones et estrades -->
-          <g v-for="(zone, zIdx) in roomData?.zones" :key="`zone-${zIdx}`">
-            <rect
-              v-for="unit in Array.from(zone.units)"
-              :key="unit"
-              :x="unit.split(',')[0]"
-              :y="unit.split(',')[1]"
-              :width="gridSize"
-              :height="gridSize"
-              :fill="zone.type === 'zone' ? '#800020' : '#808080'"
-              fill-opacity="0.3"
-              stroke="white"
-              stroke-width="0.5"
-            />
-            <g v-if="zone.name" class="zone-label-group" style="opacity: 0.6;">
-              <rect
-                :x="getZoneCenter(zone.units).x - (zone.name.length * 4 + 10)"
-                :y="getZoneCenter(zone.units).y - 10"
-                :width="zone.name.length * 8 + 20"
-                :height="20"
-                rx="10"
-                class="zone-name-badge"
-              />
-              <text
-                :x="getZoneCenter(zone.units).x"
-                :y="getZoneCenter(zone.units).y"
-                class="zone-name-label"
-              >
-                {{ zone.name }}
-              </text>
             </g>
           </g>
 

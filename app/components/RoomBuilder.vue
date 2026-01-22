@@ -68,8 +68,8 @@ const selectedDoorIndex = ref<number | null>(null);
 
 const roomLayers = ref<Array<{ id: number; name: string; type: string }>>([]);
 const activeLayerId = ref<number | null>(null);
-const selectedZoneType = ref<'zone' | 'estrade'>('zone');
-const roomZonesData = ref<Array<{ id?: number; name?: string; type: 'zone' | 'estrade'; units: Set<string> }>>([]);
+const selectedZoneType = ref<'zone' | 'estrade' | 'terrasse'>('zone');
+const roomZonesData = ref<Array<{ id?: number; name?: string; type: 'zone' | 'estrade' | 'terrasse'; units: Set<string> }>>([]);
 const currentZoneUnits = ref<Set<string>>(new Set());
 const isDrawingZone = ref(false);
 const zoneDragStart = ref<{ x: number; y: number } | null>(null);
@@ -328,14 +328,34 @@ const loadRoom = async () => {
 const selectedTableIndex = ref<number | null>(null);
 const selectedChairIndex = ref<{ tableIndex: number, chairIndex: number } | null>(null);
 
-const addTable = () => {
-  takeSnapshot();
-  _tables.value.push({
+const getRoomCenter = () => {
+  if (wallPoints.value.length === 0) return { x: 100, y: 100 };
+  
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  wallPoints.value.forEach(p => {
+    if (p.x < minX) minX = p.x;
+    if (p.x > maxX) maxX = p.x;
+    if (p.y < minY) minY = p.y;
+    if (p.y > maxY) maxY = p.y;
+  });
+  
+  return {
+    x: snapToGrid({ x: (minX + maxX) / 2, y: 0 }).x,
+    y: snapToGrid({ x: 0, y: (minY + maxY) / 2 }).y
+  };
+};
+
+const addTable = async () => {
+  const center = getRoomCenter();
+  const width = 100;
+  const height = 100;
+  
+  const newTable: Table = {
     name: `Table ${_tables.value.length + 1}`,
-    x: 50,
-    y: 50,
-    width: 100,
-    height: 100,
+    x: center.x - width / 2,
+    y: center.y - height / 2,
+    width,
+    height,
     rotation: 0,
     shape: 'rectangle',
     extraAttributes: {
@@ -345,7 +365,34 @@ const addTable = () => {
       uBaseThickness: 30
     },
     chairs: ([] as Chair[])
-  });
+  };
+
+  if (!isTableInValidArea(newTable)) {
+    // Si le centre n'est pas valide (salle en forme de L par exemple), 
+    // on essaie de trouver une position proche ou on prévient l'utilisateur.
+    const Notify = (await import('simple-notify')).default;
+    // @ts-ignore
+    new Notify({
+      status: 'warning',
+      title: 'Position par défaut',
+      text: 'La table a été placée au centre de la vue car le centre de la pièce est occupé ou invalide.',
+      autoclose: true,
+      autotimeout: 3000,
+      notificationsGap: 20,
+      type: 'outline',
+      position: 'right top',
+      customClass: 'custom-notify'
+    });
+    
+    // Fallback à une position simple si le centre est invalide
+    if (!isPointInValidArea(newTable.x, newTable.y)) {
+       newTable.x = 50;
+       newTable.y = 50;
+    }
+  }
+
+  takeSnapshot();
+  _tables.value.push(newTable);
   selectedTableIndex.value = _tables.value.length - 1;
   selectedChairIndex.value = null;
 };
@@ -496,6 +543,8 @@ const removeChair = async (tableIndex: number, chairIndex: number) => {
 
 // Drag & Drop logic simple
 const draggingTable = ref<number | null>(null);
+const draggingTableOriginalPos = ref<{ x: number, y: number, rotation: number, chairs: { x: number, y: number }[] } | null>(null);
+const draggingChairOriginalPos = ref<{ x: number, y: number } | null>(null);
 const draggingChair = ref<{ tableIndex: number, chairIndex: number } | null>(null);
 const isPanning = ref(false);
 const rotatingTable = ref<number | null>(null);
@@ -551,6 +600,14 @@ const startDragTable = (event: MouseEvent, index: number) => {
   selectedTableIndex.value = index;
   selectedChairIndex.value = null;
   const table = _tables.value[index];
+  if (table) {
+    draggingTableOriginalPos.value = {
+      x: table.x,
+      y: table.y,
+      rotation: table.rotation || 0,
+      chairs: table.chairs.map(c => ({ x: c.x, y: c.y }))
+    };
+  }
   if (!svgCanvas.value) return;
   const rect = svgCanvas.value.getBoundingClientRect();
   offset.x = (event.clientX - rect.left) / zoomLevel.value - (table?.x ?? 0) - panOffset.value.x;
@@ -564,6 +621,9 @@ const startDragChair = (event: MouseEvent, tableIndex: number, chairIndex: numbe
   selectedChairIndex.value = { tableIndex, chairIndex };
   selectedTableIndex.value = tableIndex;
   const chair = _tables.value[tableIndex]?.chairs[chairIndex];
+  if (chair) {
+    draggingChairOriginalPos.value = { x: chair.x, y: chair.y };
+  }
   if (!svgCanvas.value) return;
   const rect = svgCanvas.value.getBoundingClientRect();
   offset.x = (event.clientX - rect.left) / zoomLevel.value - (chair?.x ?? 0) - panOffset.value.x;
@@ -578,6 +638,14 @@ const startRotateTable = (event: MouseEvent, index: number) => {
   selectedChairIndex.value = null;
   
   const table = _tables.value[index];
+  if (table) {
+    draggingTableOriginalPos.value = {
+      x: table.x,
+      y: table.y,
+      rotation: table.rotation || 0,
+      chairs: table.chairs.map(c => ({ x: c.x, y: c.y }))
+    };
+  }
   const centerX = (table?.x ?? 0) + (table?.width ?? 0) / 2 + panOffset.value.x;
   const centerY = (table?.y ?? 0) + (table?.height ?? 0) / 2 + panOffset.value.y;
 
@@ -621,6 +689,54 @@ const isAdjacent = (unit1Str: string, unit2Str: string) => {
   const dx = Math.abs(x1! - x2!);
   const dy = Math.abs(y1! - y2!);
   return (dx === gridSize && dy === 0) || (dx === 0 && dy === gridSize);
+};
+
+const isPointInValidArea = (x: number, y: number) => {
+  // Check if point is inside the room
+  if (isPointInRoom(x, y)) return true;
+  
+  // Check if point is on a terrasse
+  for (const zone of roomZonesData.value) {
+    if (zone.type === 'terrasse') {
+      const cellX = Math.floor(x / gridSize) * gridSize;
+      const cellY = Math.floor(y / gridSize) * gridSize;
+      if (zone.units.has(`${cellX},${cellY}`)) {
+        return true;
+      }
+    }
+  }
+  
+  return false;
+};
+
+const isTableInValidArea = (table: Table) => {
+  // We check the center of the table or its corners
+  // For simplicity and better UX, checking if at least one part is in a valid area might be enough,
+  // but the requirement "only inside the room and on terrasses" suggests the whole table should be valid.
+  // Let's check the center and the corners.
+  
+  const points = [
+    { x: table.x + table.width / 2, y: table.y + table.height / 2 }, // Center
+    { x: table.x, y: table.y }, // Top-left
+    { x: table.x + table.width, y: table.y }, // Top-right
+    { x: table.x, y: table.y + table.height }, // Bottom-left
+    { x: table.x + table.width, y: table.y + table.height } // Bottom-right
+  ];
+
+  // If table is rotated, these points should ideally be rotated too.
+  if (table.rotation) {
+    const angle = (table.rotation * Math.PI) / 180;
+    const cx = table.x + table.width / 2;
+    const cy = table.y + table.height / 2;
+    
+    return points.every(p => {
+      const rotatedX = Math.cos(angle) * (p.x - cx) - Math.sin(angle) * (p.y - cy) + cx;
+      const rotatedY = Math.sin(angle) * (p.x - cx) + Math.cos(angle) * (p.y - cy) + cy;
+      return isPointInValidArea(rotatedX, rotatedY);
+    });
+  }
+
+  return points.every(p => isPointInValidArea(p.x, p.y));
 };
 
 const isPointInRoom = (x: number, y: number) => {
@@ -849,7 +965,7 @@ const onMouseMove = (event: MouseEvent) => {
   }
 };
 
-const stopDrag = (event: MouseEvent) => {
+const stopDrag = async (event: MouseEvent) => {
   if (isDrawingZone.value) {
     if (zoneDragStart.value) {
       const cell = getGridCellFromEvent(event);
@@ -865,13 +981,15 @@ const stopDrag = (event: MouseEvent) => {
 
         for (let x = startX; x <= endX; x += gridSize) {
           for (let y = startY; y <= endY; y += gridSize) {
-            // On vérifie que le centre de la cellule ou un coin est à l'intérieur
-            const hasPointInside = isPointInRoom(x + gridSize / 2, y + gridSize / 2) || [
-              { x, y },
-              { x: x + gridSize, y },
-              { x, y: y + gridSize },
-              { x: x + gridSize, y: y + gridSize }
-            ].some(c => isPointInRoom(c.x, c.y));
+        // On vérifie que le centre de la cellule ou un coin est à l'intérieur
+        // Sauf si c'est une terrasse, on autorise tout
+        const isTerrasse = selectedZoneType.value === 'terrasse';
+        const hasPointInside = isTerrasse || isPointInRoom(x + gridSize / 2, y + gridSize / 2) || [
+          { x, y },
+          { x: x + gridSize, y },
+          { x, y: y + gridSize },
+          { x: x + gridSize, y: y + gridSize }
+        ].some(c => isPointInRoom(c.x, c.y));
 
             if (hasPointInside) {
               currentZoneUnits.value.add(`${x},${y}`);
@@ -881,7 +999,9 @@ const stopDrag = (event: MouseEvent) => {
       } else {
         // Simple click - Toggle
         // On vérifie que le centre de la cellule est à l'intérieur ou un coin
-        const hasPointInside = isPointInRoom(cell.x + gridSize / 2, cell.y + gridSize / 2) || [
+        // Sauf si c'est une terrasse, on autorise tout
+        const isTerrasse = selectedZoneType.value === 'terrasse';
+        const hasPointInside = isTerrasse || isPointInRoom(cell.x + gridSize / 2, cell.y + gridSize / 2) || [
           { x: cell.x, y: cell.y },
           { x: cell.x + gridSize, y: cell.y },
           { x: cell.x, y: cell.y + gridSize },
@@ -917,8 +1037,74 @@ const stopDrag = (event: MouseEvent) => {
     zoneDragStart.value = null;
     zoneDragEnd.value = null;
   }
+
+  if (draggingTable.value !== null || rotatingTable.value !== null) {
+    const tableIndex = draggingTable.value !== null ? draggingTable.value : rotatingTable.value;
+    const table = _tables.value[tableIndex!];
+    if (table && !isTableInValidArea(table)) {
+      // Notification
+      const Notify = (await import('simple-notify')).default;
+      // @ts-ignore
+      new Notify({
+        status: 'warning',
+        title: 'Placement impossible',
+        text: 'Les tables doivent être placées à l\'intérieur de la salle ou sur une terrasse.',
+        autoclose: true,
+        autotimeout: 3000,
+        notificationsGap: 20,
+        type: 'outline',
+        position: 'right top',
+        customClass: 'custom-notify'
+      });
+
+      // Reset position et rotation
+      if (draggingTableOriginalPos.value) {
+        table.x = draggingTableOriginalPos.value.x;
+        table.y = draggingTableOriginalPos.value.y;
+        table.rotation = draggingTableOriginalPos.value.rotation;
+        table.chairs.forEach((chair, i) => {
+          if (draggingTableOriginalPos.value!.chairs[i]) {
+            chair.x = draggingTableOriginalPos.value!.chairs[i]!.x;
+            chair.y = draggingTableOriginalPos.value!.chairs[i]!.y;
+          }
+        });
+      }
+    }
+  }
+
+  if (draggingChair.value !== null) {
+    const { tableIndex, chairIndex } = draggingChair.value;
+    const chair = _tables.value[tableIndex]?.chairs[chairIndex];
+    if (chair && !isPointInValidArea(chair.x + 15, chair.y + 15)) {
+      // Notification
+      const Notify = (await import('simple-notify')).default;
+      // @ts-ignore
+      new Notify({
+        status: 'warning',
+        title: 'Placement impossible',
+        text: 'Les chaises doivent être placées à l\'intérieur de la salle ou sur une terrasse.',
+        autoclose: true,
+        autotimeout: 3000,
+        notificationsGap: 20,
+        type: 'outline',
+        position: 'right top',
+        customClass: 'custom-notify'
+      });
+
+      // Reset position
+      if (draggingChairOriginalPos.value) {
+        chair.x = draggingChairOriginalPos.value.x;
+        chair.y = draggingChairOriginalPos.value.y;
+        chair.relativeX = chair.x - (_tables.value[tableIndex]?.x ?? 0);
+        chair.relativeY = chair.y - (_tables.value[tableIndex]?.y ?? 0);
+      }
+    }
+  }
+
   draggingTable.value = null;
+  draggingTableOriginalPos.value = null;
   draggingChair.value = null;
+  draggingChairOriginalPos.value = null;
   rotatingTable.value = null;
   rotatingChair.value = null;
   draggingDoor.value = null;
@@ -935,7 +1121,9 @@ const deselect = (event: MouseEvent) => {
     if (isZoneMode) {
       const cell = getGridCellFromEvent(event);
       // On autorise le début du drag seulement si on est à l'intérieur
-      if (!isPointInRoom(cell.x + gridSize / 2, cell.y + gridSize / 2)) {
+      // Sauf si c'est une terrasse, on autorise tout
+      const isTerrasse = selectedZoneType.value === 'terrasse';
+      if (!isTerrasse && !isPointInRoom(cell.x + gridSize / 2, cell.y + gridSize / 2)) {
         return;
       }
       isDrawingZone.value = true;
@@ -1006,7 +1194,7 @@ const validateZone = () => {
 const confirmCreateZone = () => {
   if (currentZoneUnits.value.size > 0) {
     roomZonesData.value.push({
-      name: newZoneName.value || (selectedZoneType.value === 'zone' ? 'Nouvelle zone' : 'Nouvelle estrade'),
+      name: newZoneName.value || (selectedZoneType.value === 'zone' ? 'Nouvelle zone' : (selectedZoneType.value === 'estrade' ? 'Nouvelle estrade' : 'Nouvelle terrasse')),
       type: selectedZoneType.value,
       units: new Set(currentZoneUnits.value)
     });
@@ -1219,7 +1407,6 @@ const pasteFromClipboard = async () => {
 
     // Handle pasting a table
     if (data._type === 'table' || ('shape' in data && 'chairs' in data)) {
-      takeSnapshot();
       const newTable = data;
       delete newTable._type;
       newTable.x += 20;
@@ -1229,7 +1416,25 @@ const pasteFromClipboard = async () => {
         chair.y += 20;
         chair.rotation = chair.rotation || 0;
       });
+
+      if (!isTableInValidArea(newTable)) {
+        const Notify = (await import('simple-notify')).default;
+        // @ts-ignore
+        new Notify({
+          status: 'warning',
+          title: 'Collage impossible',
+          text: 'La table collée serait en dehors de la salle ou d\'une terrasse.',
+          autoclose: true,
+          autotimeout: 3000,
+          notificationsGap: 20,
+          type: 'outline',
+          position: 'right top',
+          customClass: 'custom-notify'
+        });
+        return;
+      }
       
+      takeSnapshot();
       _tables.value.push(newTable);
       selectedTableIndex.value = _tables.value.length - 1;
       selectedChairIndex.value = null;
@@ -1394,6 +1599,7 @@ const onWheel = (event: WheelEvent) => {
               <select v-model="selectedZoneType" class="form-select btn-sm">
                 <option value="zone">Zones</option>
                 <option value="estrade">Estrades</option>
+                <option value="terrasse">Terrasses</option>
               </select>
               <button v-if="currentZoneUnits.size > 0" class="btn btn-primary btn-sm" @click="validateZone">Valider la sélection</button>
             </div>
@@ -1480,6 +1686,75 @@ const onWheel = (event: WheelEvent) => {
             :points="wallPolylinePoints"
             class="wall-shape wall-preview"
           />
+
+          <g :class="{ 'inactive-layer': activeLayerType !== 'zones' }" :style="activeLayerType !== 'zones' ? 'pointer-events: none;' : ''">
+            <!-- Zones et estrades enregistrées -->
+            <g v-for="(zone, zIdx) in roomZonesData" :key="`zone-${zIdx}`">
+              <rect
+                v-for="unit in Array.from(zone.units)"
+                :key="unit"
+                :x="unit.split(',')[0]"
+                :y="unit.split(',')[1]"
+                :width="gridSize"
+                :height="gridSize"
+                :fill="zone.type === 'zone' ? '#800020' : (zone.type === 'estrade' ? '#808080' : '#4a90e2')"
+                fill-opacity="0.6"
+                stroke="white"
+                stroke-width="0.5"
+                @contextmenu.prevent="activeLayerType === 'zones' && deleteZone(zIdx)"
+              >
+                <title v-if="zone.name">{{ zone.name }}</title>
+              </rect>
+              <g v-if="zone.name" class="zone-label-group">
+                <rect
+                  :x="getZoneCenter(zone.units).x - (zone.name.length * 4 + 10)"
+                  :y="getZoneCenter(zone.units).y - 10"
+                  :width="zone.name.length * 8 + 20"
+                  :height="20"
+                  rx="10"
+                  class="zone-name-badge"
+                />
+                <text
+                  :x="getZoneCenter(zone.units).x"
+                  :y="getZoneCenter(zone.units).y"
+                  class="zone-name-label"
+                >
+                  {{ zone.name }}
+                </text>
+              </g>
+            </g>
+
+            <!-- Sélection en cours -->
+            <g v-if="activeLayerType === 'zones'" @contextmenu="handleContextMenu">
+              <rect
+                v-for="unit in Array.from(currentZoneUnits)"
+                :key="`current-${unit}`"
+                :x="unit.split(',')[0]"
+                :y="unit.split(',')[1]"
+                :width="gridSize"
+                :height="gridSize"
+                :fill="selectedZoneType === 'zone' ? '#800020' : (selectedZoneType === 'estrade' ? '#808080' : '#4a90e2')"
+                fill-opacity="0.8"
+                stroke="#fff"
+                stroke-width="1"
+                pointer-events="auto"
+              />
+            </g>
+
+            <!-- Aperçu du drag -->
+            <rect
+              v-if="activeLayerType === 'zones' && isDrawingZone && zoneDragStart && zoneDragEnd"
+              :x="Math.min(zoneDragStart.x, zoneDragEnd.x)"
+              :y="Math.min(zoneDragStart.y, zoneDragEnd.y)"
+              :width="Math.abs(zoneDragEnd.x - zoneDragStart.x) + gridSize"
+              :height="Math.abs(zoneDragEnd.y - zoneDragStart.y) + gridSize"
+              fill="rgba(0, 123, 255, 0.2)"
+              stroke="#007bff"
+              stroke-width="1"
+              stroke-dasharray="4"
+              pointer-events="none"
+            />
+          </g>
 
           <!-- Segments de mur interactifs pour le déplacement -->
           <template v-if="wallClosed && wallSelected">
@@ -1579,7 +1854,10 @@ const onWheel = (event: WheelEvent) => {
                     :x="table.x" :y="table.y"
                     :width="table.width" :height="table.height"
                     class="table-rect"
-                    :class="{ selected: selectedTableIndex === tIdx && !selectedChairIndex }"
+                    :class="{ 
+                      selected: selectedTableIndex === tIdx && !selectedChairIndex,
+                      invalid: draggingTable === tIdx && !isTableInValidArea(table)
+                    }"
                     @mousedown="activeLayerType === 'tables' && startDragTable($event, tIdx)"
                 />
                 <ellipse
@@ -1587,14 +1865,20 @@ const onWheel = (event: WheelEvent) => {
                     :cx="table.x + table.width/2" :cy="table.y + table.height/2"
                     :rx="table.width/2" :ry="table.height/2"
                     class="table-rect"
-                    :class="{ selected: selectedTableIndex === tIdx && !selectedChairIndex }"
+                    :class="{ 
+                      selected: selectedTableIndex === tIdx && !selectedChairIndex,
+                      invalid: draggingTable === tIdx && !isTableInValidArea(table)
+                    }"
                     @mousedown="activeLayerType === 'tables' && startDragTable($event, tIdx)"
                 />
                 <path
                     v-else-if="table.shape === 'L'"
                     :d="`M ${table.x} ${table.y} H ${table.x + table.width} V ${table.y + (table.extraAttributes?.lThicknessY || table.height * 0.4)} H ${table.x + (table.extraAttributes?.lThicknessX || table.width * 0.4)} V ${table.y + table.height} H ${table.x} Z`"
                     class="table-rect"
-                    :class="{ selected: selectedTableIndex === tIdx && !selectedChairIndex }"
+                    :class="{ 
+                      selected: selectedTableIndex === tIdx && !selectedChairIndex,
+                      invalid: draggingTable === tIdx && !isTableInValidArea(table)
+                    }"
                     @mousedown="activeLayerType === 'tables' && startDragTable($event, tIdx)"
                 />
                 <path
@@ -1610,7 +1894,10 @@ const onWheel = (event: WheelEvent) => {
                     H ${table.x}
                     Z`"
                     class="table-rect"
-                    :class="{ selected: selectedTableIndex === tIdx && !selectedChairIndex }"
+                    :class="{ 
+                      selected: selectedTableIndex === tIdx && !selectedChairIndex,
+                      invalid: draggingTable === tIdx && !isTableInValidArea(table)
+                    }"
                     @mousedown="activeLayerType === 'tables' && startDragTable($event, tIdx)"
                 />
 
@@ -1672,74 +1959,6 @@ const onWheel = (event: WheelEvent) => {
             </g>
           </g>
 
-          <g :class="{ 'inactive-layer': activeLayerType !== 'zones' }" :style="activeLayerType !== 'zones' ? 'pointer-events: none;' : ''">
-            <!-- Zones et estrades enregistrées -->
-            <g v-for="(zone, zIdx) in roomZonesData" :key="`zone-${zIdx}`">
-              <rect
-                v-for="unit in Array.from(zone.units)"
-                :key="unit"
-                :x="unit.split(',')[0]"
-                :y="unit.split(',')[1]"
-                :width="gridSize"
-                :height="gridSize"
-                :fill="zone.type === 'zone' ? '#800020' : '#808080'"
-                fill-opacity="0.6"
-                stroke="white"
-                stroke-width="0.5"
-                @contextmenu.prevent="activeLayerType === 'zones' && deleteZone(zIdx)"
-              >
-                <title v-if="zone.name">{{ zone.name }}</title>
-              </rect>
-              <g v-if="zone.name" class="zone-label-group">
-                <rect
-                  :x="getZoneCenter(zone.units).x - (zone.name.length * 4 + 10)"
-                  :y="getZoneCenter(zone.units).y - 10"
-                  :width="zone.name.length * 8 + 20"
-                  :height="20"
-                  rx="10"
-                  class="zone-name-badge"
-                />
-                <text
-                  :x="getZoneCenter(zone.units).x"
-                  :y="getZoneCenter(zone.units).y"
-                  class="zone-name-label"
-                >
-                  {{ zone.name }}
-                </text>
-              </g>
-            </g>
-
-            <!-- Sélection en cours -->
-            <g v-if="activeLayerType === 'zones'" @contextmenu="handleContextMenu">
-              <rect
-                v-for="unit in Array.from(currentZoneUnits)"
-                :key="`current-${unit}`"
-                :x="unit.split(',')[0]"
-                :y="unit.split(',')[1]"
-                :width="gridSize"
-                :height="gridSize"
-                :fill="selectedZoneType === 'zone' ? '#800020' : '#808080'"
-                fill-opacity="0.8"
-                stroke="#fff"
-                stroke-width="1"
-                pointer-events="auto"
-              />
-            </g>
-
-            <!-- Aperçu du drag -->
-            <rect
-              v-if="activeLayerType === 'zones' && isDrawingZone && zoneDragStart && zoneDragEnd"
-              :x="Math.min(zoneDragStart.x, zoneDragEnd.x)"
-              :y="Math.min(zoneDragStart.y, zoneDragEnd.y)"
-              :width="Math.abs(zoneDragEnd.x - zoneDragStart.x) + gridSize"
-              :height="Math.abs(zoneDragEnd.y - zoneDragStart.y) + gridSize"
-              fill="rgba(0, 123, 255, 0.2)"
-              stroke="#007bff"
-              stroke-width="1"
-              stroke-dasharray="4"
-              pointer-events="none"
-            />
-          </g>
         </g>
       </svg>
 
@@ -1758,7 +1977,7 @@ const onWheel = (event: WheelEvent) => {
         <!-- Modal pour nommer la zone -->
         <div v-if="showZoneNamingModal" class="modal-overlay" @click="showZoneNamingModal = false">
           <div class="modal-content" @click.stop>
-            <h3>Nommer la {{ selectedZoneType === 'zone' ? 'zone' : 'estrade' }}</h3>
+            <h3>Nommer la {{ selectedZoneType === 'zone' ? 'zone' : (selectedZoneType === 'estrade' ? 'estrade' : 'terrasse') }}</h3>
             <div style="margin: 1rem 0;">
               <input 
                 v-model="newZoneName" 
@@ -1873,6 +2092,41 @@ const onWheel = (event: WheelEvent) => {
 </style>
 
 <style scoped>
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.modal-content {
+  background: white;
+  padding: 2rem;
+  border-radius: 12px;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  max-width: 400px;
+  width: 90%;
+}
+
+.modal-content h3 {
+  margin-top: 0;
+  margin-bottom: 1rem;
+  color: #1e293b;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 1rem;
+  margin-top: 1.5rem;
+}
+
 .inactive-layer {
   opacity: 0.3;
   transition: opacity 0.3s ease;
@@ -2149,7 +2403,12 @@ const onWheel = (event: WheelEvent) => {
   cursor: move;
 }
 .table-rect.selected {
-  stroke: #ff4500;
+  stroke: #3b82f6;
+  stroke-width: 3;
+}
+.table-rect.invalid {
+  fill: #fee2e2;
+  stroke: #ef4444;
   stroke-width: 3;
 }
 .wall-shape {
@@ -2282,7 +2541,7 @@ const onWheel = (event: WheelEvent) => {
   padding: 1.25rem;
   box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
   border-radius: 8px;
-  max-height: calc(100% - 2rem);
+  max-height: calc(100% - 2rem - 40px);
   overflow-y: auto;
   z-index: 10;
 }

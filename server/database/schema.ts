@@ -57,7 +57,7 @@ export const roomZones = mysqlTable('room_zones', {
   id: int('id').primaryKey().autoincrement(),
   roomId: int('room_id').notNull(),
   name: varchar('name', { length: 255 }), // Nom de la zone ou estrade
-  type: varchar('type', { length: 20 }).notNull(), // 'zone', 'estrade'
+  type: varchar('type', { length: 20 }).notNull(), // 'zone', 'estrade', 'terrasse'
   units: varchar('units', { length: 5000 }).notNull(), // Liste de coordonnées x,y de cellules de grille (ex: "20,20 40,20")
 });
 
