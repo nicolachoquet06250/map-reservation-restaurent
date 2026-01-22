@@ -808,7 +808,7 @@ const getZoneCenter = (units: Set<string>) => {
   if (units.size === 0) return { x: 0, y: 0 };
   let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
   units.forEach(unit => {
-    const [x, y] = unit.split(',').map(Number);
+    const [x = 0, y = 0] = unit.split(',').map(Number);
     if (x < minX) minX = x!;
     if (x > maxX) maxX = x!;
     if (y < minY) minY = y!;
