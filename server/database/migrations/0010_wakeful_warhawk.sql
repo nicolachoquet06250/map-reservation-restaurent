@@ -1,0 +1,1 @@
+ALTER TABLE `doors` ADD `type` varchar(20) DEFAULT 'simple';

@@ -9,6 +9,16 @@ export interface Chair {
   isReserved?: boolean;
 }
 
+export interface Door {
+  id?: number;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  rotation: number;
+  type: 'simple' | 'double';
+}
+
 export interface Table {
   id?: number;
   roomId?: number;
@@ -51,6 +61,11 @@ const wallSelected = ref(false);
 const showDeleteWallModal = ref(false);
 const draggingWallSegment = ref<{ index1: number; index2: number; isHorizontal: boolean } | null>(null);
 
+const doors_ = ref<Door[]>([]);
+const draggingDoor = ref<number | null>(null);
+const rotatingDoor = ref<number | null>(null);
+const selectedDoorIndex = ref<number | null>(null);
+
 const roomLayers = ref<Array<{ id: number; name: string; type: string }>>([]);
 const activeLayerId = ref<number | null>(null);
 const selectedZoneType = ref<'zone' | 'estrade'>('zone');
@@ -61,6 +76,7 @@ const zoneDragStart = ref<{ x: number; y: number } | null>(null);
 const zoneDragEnd = ref<{ x: number; y: number } | null>(null);
 
 const showZoneNamingModal = ref(false);
+const showDoorDropdown = ref(false);
 const newZoneName = ref('');
 const zoneNameInput = ref<HTMLInputElement | null>(null);
 const showContextMenu = ref(false);
@@ -103,6 +119,7 @@ const selectWall = (event?: MouseEvent) => {
     wallSelected.value = true;
     selectedTableIndex.value = null;
     selectedChairIndex.value = null;
+    selectedDoorIndex.value = null;
   }
 };
 
@@ -133,7 +150,8 @@ const redoStack = ref<string[]>([]);
 const takeSnapshot = () => {
   undoStack.value.push(JSON.stringify({
     tables: _tables.value,
-    wallPoints: wallPoints.value
+    wallPoints: wallPoints.value,
+    doors: doors_.value
   }));
   redoStack.value = []; // Clear redo stack on new action
   if (undoStack.value.length > 50) { // Limit history size
@@ -145,13 +163,15 @@ const undo = () => {
   if (undoStack.value.length > 0) {
     redoStack.value.push(JSON.stringify({
       tables: _tables.value,
-      wallPoints: wallPoints.value
+      wallPoints: wallPoints.value,
+      doors: doors_.value
     }));
     const previousStateString = undoStack.value.pop();
     if (previousStateString) {
       const previousState = JSON.parse(previousStateString);
       _tables.value = previousState.tables;
       wallPoints.value = previousState.wallPoints;
+      doors_.value = previousState.doors || [];
     }
   }
 };
@@ -160,13 +180,15 @@ const redo = () => {
   if (redoStack.value.length > 0) {
     undoStack.value.push(JSON.stringify({
       tables: _tables.value,
-      wallPoints: wallPoints.value
+      wallPoints: wallPoints.value,
+      doors: doors_.value
     }));
     const nextStateString = redoStack.value.pop();
     if (nextStateString) {
       const nextState = JSON.parse(nextStateString);
       _tables.value = nextState.tables;
       wallPoints.value = nextState.wallPoints;
+      doors_.value = nextState.doors || [];
     }
   }
 };
@@ -187,11 +209,14 @@ watch(() => props.roomId, async (newId) => {
   }
 });
 
+const roomSlug = ref<string | null>(null);
+
 const loadRoom = async () => {
   try {
     const data = await $fetch<{
       room: {
         points: string | null;
+        slug: string | null;
       } | null;
       layers: {
         id: number;
@@ -216,22 +241,47 @@ const loadRoom = async () => {
         rotation: number | null;
         shape: string | null;
         extraAttributes: unknown;
+      }[],
+      doors: {
+        id?: number;
+        rotation: number | null;
       }[]
     }>(`/api/room?id=${props.roomId}`);
     
-    if (data?.room?.points) {
-      const points = data.room.points.split(' ').map(p => {
-        const [x, y] = p.split(',').map(Number);
-        return { x, y };
-      });
-      wallPoints.value = points as { x: number; y: number; }[];
-      wallStartPoint.value = (points[0] || null) as { x: number; y: number; } | null;
-      wallClosed.value = true;
-      // On garde wallSelected si c'était déjà le cas
+    if (data?.room) {
+      roomSlug.value = data.room.slug || null;
+      if (data.room.points) {
+        const points = data.room.points.split(' ').map(p => {
+          const [x, y] = p.split(',').map(Number);
+          return { x, y };
+        });
+        wallPoints.value = points as { x: number; y: number; }[];
+        wallStartPoint.value = (points[0] || null) as { x: number; y: number; } | null;
+        wallClosed.value = true;
+      } else {
+        wallPoints.value = [];
+        wallStartPoint.value = null;
+        wallClosed.value = false;
+      }
     } else {
+      roomSlug.value = null;
       wallPoints.value = [];
       wallStartPoint.value = null;
       wallClosed.value = false;
+    }
+
+    if (data?.doors) {
+      doors_.value = data.doors.map(d => ({
+        ...d,
+        rotation: d.rotation || 0,
+        type: (d as any).type || 'simple'
+      } as Door));
+      // Assurer que les portes sont bien alignées avec les murs chargés
+      nextTick(() => {
+          doors_.value.forEach((_, dIdx) => alignDoorToWall(dIdx));
+      });
+    } else {
+      doors_.value = [];
     }
 
     if (data?.zones) {
@@ -299,6 +349,86 @@ const addTable = () => {
   selectedTableIndex.value = _tables.value.length - 1;
   selectedChairIndex.value = null;
 };
+
+const addDoor = (type: 'simple' | 'double' = 'simple') => {
+  takeSnapshot();
+  
+  // Essayer de placer la porte au centre du premier mur ou au centre de la vue
+  let initialX = 100;
+  let initialY = 100;
+  let initialRotation = 0;
+  const initialWidth = type === 'double' ? 120 : 60;
+
+  if (wallSegments.value.length > 0) {
+    const firstSegment = wallSegments.value[0];
+    if (firstSegment) {
+        initialX = (firstSegment.p1!.x + firstSegment.p2!.x) / 2 - initialWidth / 2;
+        initialY = (firstSegment.p1!.y + firstSegment.p2!.y) / 2 - 5;
+        initialRotation = firstSegment.isHorizontal ? 0 : 90;
+    }
+  }
+
+  doors_.value.push({
+    x: initialX,
+    y: initialY,
+    width: initialWidth,
+    height: 10,
+    rotation: initialRotation,
+    type
+  });
+  selectedDoorIndex.value = doors_.value.length - 1;
+  selectedTableIndex.value = null;
+  selectedChairIndex.value = null;
+  wallSelected.value = false;
+};
+
+const flipDoor = (index: number) => {
+  takeSnapshot();
+  const door = doors_.value[index];
+  if (door) {
+    door.rotation = (door.rotation + 180) % 360;
+  }
+};
+
+const removeDoor = (index: number) => {
+  takeSnapshot();
+  doors_.value.splice(index, 1);
+  selectedDoorIndex.value = null;
+};
+
+const startDragDoor = (event: MouseEvent, index: number) => {
+  takeSnapshot();
+  draggingDoor.value = index;
+  selectedDoorIndex.value = index;
+  selectedTableIndex.value = null;
+  selectedChairIndex.value = null;
+  wallSelected.value = false;
+
+  const rect = svgCanvas.value!.getBoundingClientRect();
+  const mouseX = (event.clientX - rect.left) / zoomLevel.value;
+  const mouseY = (event.clientY - rect.top) / zoomLevel.value;
+
+  offset.x = mouseX - doors_.value[index]!.x - panOffset.value.x;
+  offset.y = mouseY - doors_.value[index]!.y - panOffset.value.y;
+};
+
+const startRotateDoor = (event: MouseEvent, index: number) => {
+  event.stopPropagation();
+  takeSnapshot();
+  rotatingDoor.value = index;
+  const door = doors_.value[index];
+  const centerX = (door?.x ?? 0) + (door?.width ?? 0) / 2 + panOffset.value.x;
+  const centerY = (door?.y ?? 0) + (door?.height ?? 0) / 2 + panOffset.value.y;
+
+  const rect = svgCanvas.value!.getBoundingClientRect();
+  const mouseX = (event.clientX - rect.left) / zoomLevel.value;
+  const mouseY = (event.clientY - rect.top) / zoomLevel.value;
+
+  startRotationAngle.value = Math.atan2(mouseY - centerY, mouseX - centerX);
+  initialDoorRotation.value = door?.rotation || 0;
+};
+
+const initialDoorRotation = ref(0);
 
 const addChair = (tableIndex: number) => {
   takeSnapshot();
@@ -524,6 +654,77 @@ const isPointInRoom = (x: number, y: number) => {
   return inside;
 };
 
+const isPointOnSegment = (px: number, py: number, x1: number, y1: number, x2: number, y2: number) => {
+  const d1 = Math.sqrt(Math.pow(px - x1, 2) + Math.pow(py - y1, 2));
+  const d2 = Math.sqrt(Math.pow(px - x2, 2) + Math.pow(py - y2, 2));
+  const dLen = Math.sqrt(Math.pow(x1 - x2, 2) + Math.pow(y1 - y2, 2));
+  const buffer = 0.1;
+  return d1 + d2 >= dLen - buffer && d1 + d2 <= dLen + buffer;
+};
+
+const getNearestPointOnWall = (x: number, y: number) => {
+  let minDistance = Infinity;
+  let nearestPoint = { x, y };
+  let rotation = 0;
+
+  if (!wallClosed.value || wallSegments.value.length === 0) return { nearestPoint, rotation };
+
+  wallSegments.value.forEach(segment => {
+    const { p1, p2 } = segment;
+    const dx = p2!.x - p1!.x;
+    const dy = p2!.y - p1!.y;
+    const l2 = dx * dx + dy * dy;
+
+    if (l2 === 0) return;
+
+    let t = ((x - p1!.x) * dx + (y - p1!.y) * dy) / l2;
+    t = Math.max(0, Math.min(1, t));
+
+    const projX = p1!.x + t * dx;
+    const projY = p1!.y + t * dy;
+
+    const dist = Math.sqrt(Math.pow(x - projX, 2) + Math.pow(y - projY, 2));
+
+    if (dist < minDistance) {
+      minDistance = dist;
+      nearestPoint = { x: projX, y: projY };
+      // La rotation dépend si le segment est horizontal ou vertical
+      // Dans ce projet, les murs semblent être orthogonaux d'après alignToGridLine
+      rotation = Math.abs(dx) > Math.abs(dy) ? 0 : 90;
+    }
+  });
+
+  return { nearestPoint, rotation };
+};
+
+const flipTable = (index: number) => {
+  takeSnapshot();
+  const table = _tables.value[index];
+  if (table) {
+    table.rotation = ((table.rotation || 0) + 180) % 360;
+  }
+};
+
+const flipChair = (tableIndex: number, chairIndex: number) => {
+  takeSnapshot();
+  const chair = _tables.value[tableIndex]?.chairs[chairIndex];
+  if (chair) {
+    chair.rotation = (chair.rotation + 180) % 360;
+  }
+};
+
+const alignDoorToWall = (index: number) => {
+  const door = doors_.value[index];
+  if (!door) return;
+  const { nearestPoint, rotation } = getNearestPointOnWall(door.x + door.width / 2, door.y + door.height / 2);
+  door.x = nearestPoint.x - door.width / 2;
+  door.y = nearestPoint.y - door.height / 2;
+  
+  // Conserver le flip si présent (180 ou 270 selon l'axe)
+  const isFlipped = (door.rotation % 360) === ((rotation + 180) % 360);
+  door.rotation = isFlipped ? (rotation + 180) % 360 : rotation;
+};
+
 const onMouseMove = (event: MouseEvent) => {
   if (isPanning.value) {
     panOffset.value.x += event.movementX / zoomLevel.value;
@@ -589,6 +790,31 @@ const onMouseMove = (event: MouseEvent) => {
     const deltaAngle = (currentAngle - startRotationAngle.value) * (180 / Math.PI);
     
     chair!.rotation = (initialChairRotation.value + deltaAngle) % 360;
+  } else if (draggingDoor.value !== null) {
+    const door = doors_.value[draggingDoor.value];
+    if (door) {
+      const targetX = mouseX - offset.x - panOffset.value.x;
+      const targetY = mouseY - offset.y - panOffset.value.y;
+
+      const { nearestPoint, rotation } = getNearestPointOnWall(targetX + door.width / 2, targetY + door.height / 2);
+      
+      // On centre la porte sur le point le plus proche
+      door.x = nearestPoint.x - door.width / 2;
+      door.y = nearestPoint.y - door.height / 2;
+      
+      // Conserver le flip pendant le drag
+      const isFlipped = (door.rotation % 360) === ((rotation + 180) % 360);
+      door.rotation = isFlipped ? (rotation + 180) % 360 : rotation;
+    }
+  } else if (rotatingDoor.value !== null) {
+    const door = doors_.value[rotatingDoor.value];
+    const centerX = (door?.x ?? 0) + (door?.width ?? 0) / 2 + panOffset.value.x;
+    const centerY = (door?.y ?? 0) + (door?.height ?? 0) / 2 + panOffset.value.y;
+
+    const currentAngle = Math.atan2(mouseY - centerY, mouseX - centerX);
+    const deltaAngle = (currentAngle - startRotationAngle.value) * (180 / Math.PI);
+
+    door!.rotation = (initialDoorRotation.value + deltaAngle) % 360;
   } else if (draggingWallSegment.value !== null) {
     const { index1, index2, isHorizontal } = draggingWallSegment.value;
     const snapped = getGridPointFromEvent(event);
@@ -602,6 +828,9 @@ const onMouseMove = (event: MouseEvent) => {
       wallPoints.value[index1]!.x = snapped.x;
       wallPoints.value[index2]!.x = snapped.x;
     }
+  
+    // Recaler les portes sur les murs après avoir déplacé un segment
+    doors_.value.forEach((_, dIdx) => alignDoorToWall(dIdx));
   }
 
   if (
@@ -692,6 +921,8 @@ const stopDrag = (event: MouseEvent) => {
   draggingChair.value = null;
   rotatingTable.value = null;
   rotatingChair.value = null;
+  draggingDoor.value = null;
+  rotatingDoor.value = null;
   draggingWallSegment.value = null;
   isPanning.value = false;
 };
@@ -714,6 +945,7 @@ const deselect = (event: MouseEvent) => {
     }
     selectedTableIndex.value = null;
     selectedChairIndex.value = null;
+    selectedDoorIndex.value = null;
     wallSelected.value = false;
     isPanning.value = true;
   }
@@ -760,13 +992,6 @@ const wallPolylinePoints = computed(() => {
   return points.join(' ');
 });
 
-const isPointOnSegment = (px: number, py: number, x1: number, y1: number, x2: number, y2: number) => {
-  const d1 = Math.sqrt(Math.pow(px - x1, 2) + Math.pow(py - y1, 2));
-  const d2 = Math.sqrt(Math.pow(px - x2, 2) + Math.pow(py - y2, 2));
-  const lineLen = Math.sqrt(Math.pow(x1 - x2, 2) + Math.pow(y1 - y2, 2));
-  const buffer = 0.1;
-  return d1 + d2 >= lineLen - buffer && d1 + d2 <= lineLen + buffer;
-};
 
 const emit = defineEmits(['saved']);
 
@@ -822,7 +1047,6 @@ const getZoneCenter = (units: Set<string>) => {
 };
 
 const handleKeyDown = (event: KeyboardEvent) => {
-  // if (event.target.tagName)
   const isCtrl = event.ctrlKey || event.metaKey;
 
   // Undo / Redo
@@ -855,6 +1079,10 @@ const handleKeyDown = (event: KeyboardEvent) => {
     } else if (selectedTableIndex.value !== null) {
       event.preventDefault();
       removeTable(selectedTableIndex.value);
+      return;
+    } else if (selectedDoorIndex.value !== null) {
+      event.preventDefault();
+      removeDoor(selectedDoorIndex.value);
       return;
     } else if (wallSelected.value) {
       event.preventDefault();
@@ -1024,7 +1252,8 @@ const save = async () => {
           name: z.name || null,
           type: z.type,
           units: Array.from(z.units).join(' ')
-        }))
+        })),
+        doors: doors_.value
       }
     });
 
@@ -1040,6 +1269,7 @@ const save = async () => {
       wallSelected.value = currentWallSelected;
       selectedTableIndex.value = currentSelectedTableIndex;
       selectedChairIndex.value = currentSelectedChairIndex;
+      selectedDoorIndex.value = null;
     }
     // @ts-ignore
     new Notify({
@@ -1075,6 +1305,12 @@ const save = async () => {
 onMounted(async () => {
   await loadRoom();
   window.addEventListener('keydown', handleKeyDown);
+  window.addEventListener('click', (e) => {
+    console.log((e.target as HTMLElement), (e.target as HTMLElement).getAttribute('data-action'))
+    if ((e.target as HTMLElement).getAttribute('data-action') !== 'add-door-dropdown') {
+      showDoorDropdown.value = false;
+    }
+  });
 });
 
 onUnmounted(() => {
@@ -1101,6 +1337,14 @@ const onWheel = (event: WheelEvent) => {
             <div class="name-field">
               <span class="label">Salle :</span>
               <input v-model="roomName" placeholder="Nom de la salle" />
+              <button 
+                v-if="!roomSlug" 
+                class="btn btn-sm btn-primary" 
+                style="margin-left: 8px;"
+                @click="save"
+              >
+                Générer une url
+              </button>
             </div>
           </div>
         </div>
@@ -1128,10 +1372,21 @@ const onWheel = (event: WheelEvent) => {
           </div>
 
           <div class="toolbar-group" v-if="activeLayerType === 'tables'">
-            <button class="btn btn-secondary btn-sm" @click="addTable">
+            <button class="btn btn-secondary btn-sm" @click="addTable" title="Ajouter une table">
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px;"><rect x="4" y="4" width="16" height="16" rx="2"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
-              Ajouter une table
+              Table
             </button>
+            <div class="door-dropdown-container">
+              <button class="btn btn-secondary btn-sm" @click="showDoorDropdown = !showDoorDropdown" data-action="add-door-dropdown" title="Ajouter une porte">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px;"><path d="M3 3h18v18H3z"/><path d="M9 3v18"/><path d="M15 3v18"/><path d="M3 9h18"/><path d="M3 15h18"/></svg>
+                Porte
+                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-left: 4px;"><polyline points="6 9 12 15 18 9"></polyline></svg>
+              </button>
+              <div v-if="showDoorDropdown" class="door-dropdown">
+                <button @click="addDoor('simple'); showDoorDropdown = false">Porte simple</button>
+                <button @click="addDoor('double'); showDoorDropdown = false">Porte double</button>
+              </div>
+            </div>
           </div>
 
           <div v-if="activeLayerType === 'zones'" class="toolbar-group">
@@ -1196,6 +1451,17 @@ const onWheel = (event: WheelEvent) => {
           <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">
             <path d="M 20 0 L 0 0 0 20" fill="none" stroke="#eee" stroke-width="1"/>
           </pattern>
+          <mask id="wallMask">
+            <rect width="10000" height="10000" x="-5000" y="-5000" fill="white" />
+            <g v-for="(door, dIdx) in doors_" :key="`mask-door-${dIdx}`">
+              <rect
+                :x="door.x" :y="door.y"
+                :width="door.width" :height="door.height"
+                fill="black"
+                :transform="`rotate(${door.rotation || 0}, ${door.x + door.width / 2}, ${door.y + door.height / 2})`"
+              />
+            </g>
+          </mask>
         </defs>
         <rect width="100%" height="100%" fill="url(#grid)" class="canvas-background" :transform="`translate(${panOffset.x % 20}, ${panOffset.y % 20})`" @click="handleWallClick" @mouseup="stopDrag($event)" />
 
@@ -1205,6 +1471,7 @@ const onWheel = (event: WheelEvent) => {
             :points="wallPoints.map(p => `${p.x},${p.y}`).join(' ')"
             class="wall-shape"
             :class="{ selected: wallSelected }"
+            mask="url(#wallMask)"
             @mousedown="selectWall($event)"
             @click="handleWallClick"
           />
@@ -1240,6 +1507,70 @@ const onWheel = (event: WheelEvent) => {
           />
 
           <g :class="{ 'inactive-layer': activeLayerType !== 'tables' }" :style="activeLayerType !== 'tables' ? 'pointer-events: none;' : ''">
+              <g v-for="(door, dIdx) in doors_" :key="`door-${dIdx}`">
+                <g :transform="`rotate(${door.rotation || 0}, ${door.x + door.width / 2}, ${door.y + door.height / 2})`">
+                  <rect
+                    :x="door.x" :y="door.y"
+                    :width="door.width" :height="door.height"
+                    class="door-rect"
+                    :class="{ selected: selectedDoorIndex === dIdx }"
+                    @mousedown="activeLayerType === 'tables' && startDragDoor($event, dIdx)"
+                  />
+                  <!-- Représentation du sens d'ouverture -->
+                  <template v-if="door.type === 'double'">
+                    <!-- Côté gauche -->
+                    <path
+                      :d="`M ${door.x + door.width / 2} ${door.y + door.height} A ${door.width / 2} ${door.width / 2} 0 0 0 ${door.x} ${door.y + door.height - door.width / 2}`"
+                      fill="none"
+                      stroke="#333"
+                      stroke-width="2"
+                      stroke-dasharray="4 2"
+                      style="pointer-events: none;"
+                    />
+                    <line
+                      :x1="door.x" :y1="door.y + door.height"
+                      :x2="door.x" :y2="door.y + door.height - door.width / 2"
+                      stroke="#333"
+                      stroke-width="2"
+                      style="pointer-events: none;"
+                    />
+                    <!-- Côté droit -->
+                    <path
+                      :d="`M ${door.x + door.width / 2} ${door.y + door.height} A ${door.width / 2} ${door.width / 2} 0 0 1 ${door.x + door.width} ${door.y + door.height - door.width / 2}`"
+                      fill="none"
+                      stroke="#333"
+                      stroke-width="2"
+                      stroke-dasharray="4 2"
+                      style="pointer-events: none;"
+                    />
+                    <line
+                      :x1="door.x + door.width" :y1="door.y + door.height"
+                      :x2="door.x + door.width" :y2="door.y + door.height - door.width / 2"
+                      stroke="#333"
+                      stroke-width="2"
+                      style="pointer-events: none;"
+                    />
+                  </template>
+                  <template v-else>
+                    <path
+                      :d="`M ${door.x + door.width} ${door.y + door.height} A ${door.width} ${door.width} 0 0 0 ${door.x} ${door.y + door.height - door.width}`"
+                      fill="none"
+                      stroke="#333"
+                      stroke-width="2"
+                      stroke-dasharray="4 2"
+                      style="pointer-events: none;"
+                    />
+                    <line
+                      :x1="door.x" :y1="door.y + door.height"
+                      :x2="door.x" :y2="door.y + door.height - door.width"
+                      stroke="#333"
+                      stroke-width="2"
+                      style="pointer-events: none;"
+                    />
+                  </template>
+                </g>
+              </g>
+
             <g v-for="(table, tIdx) in _tables" :key="tIdx">
               <g :transform="`rotate(${table.rotation || 0}, ${table.x + table.width / 2}, ${table.y + table.height / 2})`">
                 <!-- Table -->
@@ -1459,57 +1790,77 @@ const onWheel = (event: WheelEvent) => {
         </div>
       </Teleport>
 
-      <div v-if="selectedTableIndex !== null" class="properties-panel">
-        <div v-if="selectedChairIndex">
-          <h3>Chaise</h3>
-          <p class="parent-info">Table: <strong>{{ _tables[selectedChairIndex.tableIndex]?.name }}</strong></p>
-          <label>Rotation (°): <input type="number" v-model.number="_tables[selectedChairIndex.tableIndex]!.chairs[selectedChairIndex.chairIndex]!.rotation" /></label>
-          <div class="actions">
-            <button @click="removeChair(selectedChairIndex.tableIndex, selectedChairIndex.chairIndex)" class="btn btn-danger">Supprimer</button>
-            <button @click="selectedChairIndex = null" class="btn btn-secondary">Retour</button>
+      <div v-if="selectedTableIndex !== null || selectedDoorIndex !== null" class="properties-panel">
+        <div v-if="selectedTableIndex !== null">
+          <div v-if="selectedChairIndex">
+            <h3>Chaise</h3>
+            <p class="parent-info">Table: <strong>{{ _tables[selectedChairIndex.tableIndex]?.name }}</strong></p>
+            <label>Rotation (°): <input type="number" v-model.number="_tables[selectedChairIndex.tableIndex]!.chairs[selectedChairIndex.chairIndex]!.rotation" /></label>
+            <div class="actions">
+              <button @click="flipChair(selectedChairIndex.tableIndex, selectedChairIndex.chairIndex)" class="btn btn-primary" title="Faire pivoter la chaise de 180°">Pivoter 180°</button>
+              <button @click="removeChair(selectedChairIndex.tableIndex, selectedChairIndex.chairIndex)" class="btn btn-danger">Supprimer</button>
+              <button @click="selectedChairIndex = null" class="btn btn-secondary">Retour</button>
+            </div>
           </div>
-        </div>
-        <div v-else>
-          <h3>Table</h3>
-          <label>Nom: <input v-model="_tables[selectedTableIndex]!.name" /></label>
-          <label>Forme:
-            <select v-model="_tables[selectedTableIndex]!.shape" @change="() => {
-              if (!_tables[selectedTableIndex!]!.extraAttributes) {
-                _tables[selectedTableIndex!]!.extraAttributes = {
-                  lThicknessX: 40,
-                  lThicknessY: 40,
-                  uThickness: 30,
-                  uBaseThickness: 30
+          <div v-else>
+            <h3>Table</h3>
+            <label>Nom: <input v-model="_tables[selectedTableIndex]!.name" /></label>
+            <label>Forme:
+              <select v-model="_tables[selectedTableIndex]!.shape" @change="() => {
+                if (!_tables[selectedTableIndex!]!.extraAttributes) {
+                  _tables[selectedTableIndex!]!.extraAttributes = {
+                    lThicknessX: 40,
+                    lThicknessY: 40,
+                    uThickness: 30,
+                    uBaseThickness: 30
+                  }
                 }
-              }
-            }">
-              <option value="rectangle">Rectangle</option>
-              <option value="circle">Cercle</option>
-              <option value="L">Table en L</option>
-              <option value="U">Table en U</option>
-            </select>
-          </label>
-          <div class="properties-group">
-            <label>Largeur: <input type="number" v-model.number="_tables[selectedTableIndex]!.width" /></label>
-            <label>Hauteur: <input type="number" v-model.number="_tables[selectedTableIndex]!.height" /></label>
-          </div>
-          <label>Rotation (°): <input type="number" v-model.number="_tables[selectedTableIndex]!.rotation" /></label>
+              }">
+                <option value="rectangle">Rectangle</option>
+                <option value="circle">Cercle</option>
+                <option value="L">Table en L</option>
+                <option value="U">Table en U</option>
+              </select>
+            </label>
+            <div class="properties-group">
+              <label>Largeur: <input type="number" v-model.number="_tables[selectedTableIndex]!.width" /></label>
+              <label>Hauteur: <input type="number" v-model.number="_tables[selectedTableIndex]!.height" /></label>
+            </div>
+            <label>Rotation (°): <input type="number" v-model.number="_tables[selectedTableIndex]!.rotation" /></label>
 
-          <div v-if="_tables[selectedTableIndex]?.shape === 'L'" class="properties-group">
-            <label>Épaisseur H: <input type="number" v-model.number="_tables[selectedTableIndex]!.extraAttributes!.lThicknessX" /></label>
-            <label>Épaisseur V: <input type="number" v-model.number="_tables[selectedTableIndex]!.extraAttributes!.lThicknessY" /></label>
-          </div>
+            <div v-if="_tables[selectedTableIndex]?.shape === 'L'" class="properties-group">
+              <label>Épaisseur H: <input type="number" v-model.number="_tables[selectedTableIndex]!.extraAttributes!.lThicknessX" /></label>
+              <label>Épaisseur V: <input type="number" v-model.number="_tables[selectedTableIndex]!.extraAttributes!.lThicknessY" /></label>
+            </div>
 
-          <div v-if="_tables[selectedTableIndex]?.shape === 'U'" class="properties-group">
-            <label>Épaisseur branches: <input type="number" v-model.number="_tables[selectedTableIndex]!.extraAttributes!.uThickness" /></label>
-            <label>Épaisseur base: <input type="number" v-model.number="_tables[selectedTableIndex]!.extraAttributes!.uBaseThickness" /></label>
-          </div>
+            <div v-if="_tables[selectedTableIndex]?.shape === 'U'" class="properties-group">
+              <label>Épaisseur branches: <input type="number" v-model.number="_tables[selectedTableIndex]!.extraAttributes!.uThickness" /></label>
+              <label>Épaisseur base: <input type="number" v-model.number="_tables[selectedTableIndex]!.extraAttributes!.uBaseThickness" /></label>
+            </div>
 
-          <div class="actions">
-            <button @click="addChair(selectedTableIndex)" class="btn btn-primary">Ajouter une chaise</button>
-            <button @click="removeTable(selectedTableIndex)" class="btn btn-danger">Supprimer la table</button>
+            <div class="actions">
+              <button @click="flipTable(selectedTableIndex)" class="btn btn-primary" title="Faire pivoter la table de 180°">Pivoter 180°</button>
+              <button @click="addChair(selectedTableIndex)" class="btn btn-primary">Ajouter une chaise</button>
+              <button @click="removeTable(selectedTableIndex)" class="btn btn-danger">Supprimer la table</button>
+            </div>
           </div>
         </div>
+
+          <div v-else-if="selectedDoorIndex !== null">
+            <div class="panel-header">
+              <h3>Porte {{ doors_[selectedDoorIndex]!.type === 'double' ? 'double' : 'simple' }}</h3>
+            </div>
+
+            <div class="form-group">
+              <label>Largeur (cm)</label>
+              <input type="number" v-model.number="doors_[selectedDoorIndex]!.width" step="5" @input="alignDoorToWall(selectedDoorIndex)" />
+            </div>
+
+            <div class="actions">
+              <button @click="flipDoor(selectedDoorIndex)" class="btn btn-primary" title="Faire pivoter la porte de 180°">Pivoter 180°</button>
+              <button @click="removeDoor(selectedDoorIndex)" class="btn btn-danger">Supprimer la porte</button>
+            </div>
+          </div>
       </div>
     </div>
   </div>
@@ -1527,11 +1878,45 @@ const onWheel = (event: WheelEvent) => {
   transition: opacity 0.3s ease;
 }
 
+.door-dropdown-container {
+  position: relative;
+}
+.door-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  background: white;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  z-index: 100;
+  min-width: 140px;
+  margin-top: 4px;
+}
+.door-dropdown button {
+  width: 100%;
+  text-align: left;
+  padding: 8px 12px;
+  background: none;
+  border: none;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+.door-dropdown button:hover {
+  background-color: #f1f5f9;
+}
+.door-dropdown button:first-child {
+  border-radius: 6px 6px 0 0;
+}
+.door-dropdown button:last-child {
+  border-radius: 0 0 6px 6px;
+}
+
 .builder-container {
   display: flex;
   flex-direction: column;
   height: 100%;
-  font-family: sans-serif;
 }
 .toolbar {
   flex-shrink: 0;
@@ -1774,6 +2159,7 @@ const onWheel = (event: WheelEvent) => {
   stroke-linecap: square;
   stroke-linejoin: miter;
   cursor: pointer;
+  mask: url(#wallMask);
 }
 .wall-shape.selected {
   stroke: #007bff;
@@ -1860,6 +2246,16 @@ const onWheel = (event: WheelEvent) => {
 .chair-rect.selected {
   stroke: #ff4500;
   stroke-width: 3;
+}
+.door-rect {
+  fill: #fff;
+  stroke: #333;
+  stroke-width: 2;
+  cursor: move;
+}
+.door-rect.selected {
+  stroke: #ff4500;
+  stroke-width: 4;
 }
 .rotation-handle {
   fill: white;

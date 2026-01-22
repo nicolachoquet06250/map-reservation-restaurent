@@ -1,22 +1,29 @@
-import { rooms, tables, chairs, reservations, tableAttributes, layers, roomZones } from '~~/server/database/schema'
+import { rooms, tables, chairs, reservations, tableAttributes, layers, roomZones, doors } from '~~/server/database/schema'
 import {eq, sql} from 'drizzle-orm'
 
 export default defineEventHandler(async (event) => {
   const db = useDb()
   const query = getQuery(event)
   const roomId = Number(query.id)
+  const slug = query.slug as string
 
-  if (!roomId) return { room: null, tables: [], layers: [], zones: [] }
+  if (!roomId && !slug) return { room: null, tables: [], layers: [], zones: [] }
 
-  const [roomData, roomLayers, roomZonesData] = await Promise.all([
-    db.query.rooms.findFirst({
-      where: eq(rooms.id, roomId),
-    }),
-    db.select().from(layers).where(eq(layers.roomId, roomId)),
-    db.select().from(roomZones).where(eq(roomZones.roomId, roomId))
-  ])
+  const whereClause = roomId ? eq(rooms.id, roomId) : eq(rooms.slug, slug)
+
+  const roomData = await db.query.rooms.findFirst({
+    where: whereClause,
+  })
 
   if (!roomData) return { room: null, tables: [], layers: [], zones: [] }
+
+  const effectiveRoomId = roomData.id
+
+  const [roomLayers, roomZonesData, roomDoorsData] = await Promise.all([
+    db.select().from(layers).where(eq(layers.roomId, effectiveRoomId)),
+    db.select().from(roomZones).where(eq(roomZones.roomId, effectiveRoomId)),
+    db.select().from(doors).where(eq(doors.roomId, effectiveRoomId))
+  ])
 
  const fullQueryTables = await db.select({
      id: tables.id,
@@ -51,12 +58,13 @@ export default defineEventHandler(async (event) => {
  })
      .from(tables)
      .leftJoin(tableAttributes, eq(tables.id, tableAttributes.tableId))
-     .where(eq(tables.roomId, roomId));
+     .where(eq(tables.roomId, effectiveRoomId));
 
   return {
     room: roomData,
     layers: roomLayers,
     zones: roomZonesData,
+    doors: roomDoorsData,
     tables: fullQueryTables.map(r => ({
         ...r,
         extraAttributes: typeof r.extraAttributes === 'string'

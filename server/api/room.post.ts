@@ -1,4 +1,4 @@
-import { rooms, tables, chairs, reservations, tableAttributes, layers, roomZones } from '~~/server/database/schema'
+import { rooms, tables, chairs, reservations, tableAttributes, layers, roomZones, doors } from '~~/server/database/schema'
 import { eq, inArray } from 'drizzle-orm'
 
 export default defineEventHandler(async (event) => {
@@ -10,8 +10,10 @@ export default defineEventHandler(async (event) => {
   // --- GESTION DES TABLES ET CHAISES ---
   // Si pas de roomId, on crée une nouvelle salle
   if (!roomId) {
+    const name = body.roomName || 'Nouvelle salle'
     const [newRoom] = await db.insert(rooms).values({
-      name: body.roomName || 'Nouvelle salle',
+      name,
+      slug: slugify(name),
       points: body.points || null
     })
     roomId = newRoom.insertId
@@ -21,9 +23,11 @@ export default defineEventHandler(async (event) => {
         .from(rooms)
         .where(eq(rooms.id, roomId))
     if (existingRoom.length === 0) {
+      const name = body.roomName || 'Main Room'
       await db.insert(rooms).values({
         id: roomId,
-        name: body.roomName || 'Main Room',
+        name,
+        slug: slugify(name),
         points: body.points || null
       })
     } else {
@@ -31,6 +35,10 @@ export default defineEventHandler(async (event) => {
       const updateData: any = {}
       if (body.roomName && body.roomName !== existingRoom[0].name) {
         updateData.name = body.roomName
+        updateData.slug = slugify(body.roomName)
+      } else if (!existingRoom[0].slug) {
+        // Si le slug est manquant (migration), on le génère à partir du nom actuel
+        updateData.slug = slugify(existingRoom[0].name)
       }
       if (body.points !== undefined) {
         updateData.points = body.points
@@ -70,6 +78,21 @@ export default defineEventHandler(async (event) => {
       units: z.units
     }));
     await db.insert(roomZones).values(zonesToInsert)
+  }
+
+  // --- GESTION DES PORTES ---
+  await db.delete(doors).where(eq(doors.roomId, roomId))
+  if (body.doors && body.doors.length > 0) {
+    const doorsToInsert = body.doors.map((d: any) => ({
+      roomId,
+      x: d.x,
+      y: d.y,
+      width: d.width,
+      height: d.height,
+      rotation: d.rotation || 0,
+      type: d.type || 'simple',
+    }));
+    await db.insert(doors).values(doorsToInsert)
   }
 
   // --- GESTION DES TABLES ET CHAISES ---

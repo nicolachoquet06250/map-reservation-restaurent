@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import 'simple-notify/dist/simple-notify.css'
-import type {Table} from "~/components/RoomBuilder.vue";
+import type {Table, Door} from "~/components/RoomBuilder.vue";
 
 const props = defineProps<{
   roomId: number;
 }>();
 
-const { data: roomData, refresh } = await useFetch<{room: any, zones: any[], tables: Table[]}>(() => `/api/room?id=${props.roomId}`, {
+const { data: roomData, refresh } = await useFetch<{room: any, zones: any[], doors: Door[], tables: Table[]}>(() => `/api/room?id=${props.roomId}`, {
   transform: (data) => {
     return {
       room: data.room,
@@ -14,6 +14,7 @@ const { data: roomData, refresh } = await useFetch<{room: any, zones: any[], tab
         ...z,
         units: new Set(z.units.split(' '))
       })),
+      doors: data.doors || [],
       tables: data.tables.map((t: any) => ({
         ...t,
         extraAttributes: t.extraAttributes || {
@@ -209,6 +210,17 @@ const reserve = async () => {
           <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">
             <path d="M 20 0 L 0 0 0 20" fill="none" stroke="#eee" stroke-width="1"/>
           </pattern>
+          <mask id="wallMaskClient">
+            <rect width="10000" height="10000" x="-5000" y="-5000" fill="white" />
+            <g v-for="(door, dIdx) in roomData?.doors" :key="`mask-door-${dIdx}`">
+              <rect
+                :x="door.x" :y="door.y"
+                :width="door.width" :height="door.height"
+                fill="black"
+                :transform="`rotate(${door.rotation || 0}, ${door.x + door.width / 2}, ${door.y + door.height / 2})`"
+              />
+            </g>
+          </mask>
         </defs>
         <rect width="100%" height="100%" fill="url(#grid)" class="canvas-background" :transform="`translate(${panOffset.x % 20}, ${panOffset.y % 20})`" />
 
@@ -218,7 +230,71 @@ const reserve = async () => {
             v-if="roomData?.room?.points"
             :points="roomData.room.points"
             class="wall-shape"
+            mask="url(#wallMaskClient)"
           />
+
+          <!-- Portes -->
+          <g v-for="(door, dIdx) in roomData?.doors" :key="`door-${dIdx}`">
+            <g :transform="`rotate(${door.rotation || 0}, ${door.x + door.width / 2}, ${door.y + door.height / 2})`">
+              <rect
+                :x="door.x" :y="door.y"
+                :width="door.width" :height="door.height"
+                class="door-rect"
+              />
+              <!-- Représentation du sens d'ouverture -->
+              <template v-if="(door as any).type === 'double'">
+                <!-- Côté gauche -->
+                <path
+                  :d="`M ${door.x + door.width / 2} ${door.y + door.height} A ${door.width / 2} ${door.width / 2} 0 0 0 ${door.x} ${door.y + door.height - door.width / 2}`"
+                  fill="none"
+                  stroke="#333"
+                  stroke-width="2"
+                  stroke-dasharray="4 2"
+                  style="pointer-events: none;"
+                />
+                <line
+                  :x1="door.x" :y1="door.y + door.height"
+                  :x2="door.x" :y2="door.y + door.height - door.width / 2"
+                  stroke="#333"
+                  stroke-width="2"
+                  style="pointer-events: none;"
+                />
+                <!-- Côté droit -->
+                <path
+                  :d="`M ${door.x + door.width / 2} ${door.y + door.height} A ${door.width / 2} ${door.width / 2} 0 0 1 ${door.x + door.width} ${door.y + door.height - door.width / 2}`"
+                  fill="none"
+                  stroke="#333"
+                  stroke-width="2"
+                  stroke-dasharray="4 2"
+                  style="pointer-events: none;"
+                />
+                <line
+                  :x1="door.x + door.width" :y1="door.y + door.height"
+                  :x2="door.x + door.width" :y2="door.y + door.height - door.width / 2"
+                  stroke="#333"
+                  stroke-width="2"
+                  style="pointer-events: none;"
+                />
+              </template>
+              <template v-else>
+                <path
+                  :d="`M ${door.x + door.width} ${door.y + door.height} A ${door.width} ${door.width} 0 0 0 ${door.x} ${door.y + door.height - door.width}`"
+                  fill="none"
+                  stroke="#333"
+                  stroke-width="2"
+                  stroke-dasharray="4 2"
+                  style="pointer-events: none;"
+                />
+                <line
+                  :x1="door.x" :y1="door.y + door.height"
+                  :x2="door.x" :y2="door.y + door.height - door.width"
+                  stroke="#333"
+                  stroke-width="2"
+                  style="pointer-events: none;"
+                />
+              </template>
+            </g>
+          </g>
 
           <!-- Zones et estrades -->
           <g v-for="(zone, zIdx) in roomData?.zones" :key="`zone-${zIdx}`">
@@ -338,7 +414,6 @@ const reserve = async () => {
   display: flex;
   flex-direction: column;
   height: 100vh;
-  font-family: sans-serif;
 }
 .header {
   padding: 1rem;
@@ -406,6 +481,12 @@ const reserve = async () => {
   stroke-width: 4;
   stroke-linecap: square;
   stroke-linejoin: miter;
+  pointer-events: none;
+}
+.door-rect {
+  fill: #fff;
+  stroke: #333;
+  stroke-width: 2;
   pointer-events: none;
 }
 .zone-name-label {
