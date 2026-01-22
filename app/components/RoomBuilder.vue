@@ -41,6 +41,11 @@ const _tables = ref<Table[]>([]);
 const roomName = ref(props.roomName);
 const zoomLevel = ref(1);
 const panOffset = ref({ x: 0, y: 0 });
+const gridSize = 20;
+const wallPoints = ref<Array<{ x: number; y: number }>>([]);
+const wallStartPoint = ref<{ x: number; y: number } | null>(null);
+const wallPreviewPoint = ref<{ x: number; y: number } | null>(null);
+const wallClosed = ref(false);
 
 // Undo/Redo logic
 const undoStack = ref<string[]>([]);
@@ -233,6 +238,28 @@ const startRotationAngle = ref(0);
 const initialTableRotation = ref(0);
 const initialChairRotation = ref(0);
 
+const snapToGrid = (point: { x: number; y: number }) => ({
+  x: Math.round(point.x / gridSize) * gridSize,
+  y: Math.round(point.y / gridSize) * gridSize
+});
+
+const alignToGridLine = (point: { x: number; y: number }, lastPoint: { x: number; y: number }) => {
+  const dx = Math.abs(point.x - lastPoint.x);
+  const dy = Math.abs(point.y - lastPoint.y);
+  if (dx >= dy) {
+    return { x: point.x, y: lastPoint.y };
+  }
+  return { x: lastPoint.x, y: point.y };
+};
+
+const getGridPointFromEvent = (event: MouseEvent) => {
+  const rawPoint = {
+    x: event.clientX / zoomLevel.value - panOffset.value.x,
+    y: event.clientY / zoomLevel.value - panOffset.value.y
+  };
+  return snapToGrid(rawPoint);
+};
+
 const startDragTable = (event: MouseEvent, index: number) => {
   takeSnapshot();
   draggingTable.value = index;
@@ -335,6 +362,20 @@ const onMouseMove = (event: MouseEvent) => {
     
     chair!.rotation = (initialChairRotation.value + deltaAngle) % 360;
   }
+
+  if (
+    wallStartPoint.value &&
+    !wallClosed.value &&
+    draggingTable.value === null &&
+    draggingChair.value === null &&
+    rotatingTable.value === null &&
+    rotatingChair.value === null &&
+    !isPanning.value
+  ) {
+    const snapped = getGridPointFromEvent(event);
+    const lastPoint = wallPoints.value[wallPoints.value.length - 1] ?? wallStartPoint.value;
+    wallPreviewPoint.value = alignToGridLine(snapped, lastPoint);
+  }
 };
 
 const stopDrag = () => {
@@ -352,6 +393,43 @@ const deselect = (event: MouseEvent) => {
     isPanning.value = true;
   }
 };
+
+const handleWallClick = (event: MouseEvent) => {
+  if (wallClosed.value) return;
+  const snapped = getGridPointFromEvent(event);
+
+  if (!wallStartPoint.value) {
+    wallStartPoint.value = snapped;
+    wallPoints.value = [snapped];
+    wallPreviewPoint.value = snapped;
+    return;
+  }
+
+  const lastPoint = wallPoints.value[wallPoints.value.length - 1];
+  const alignedPoint = alignToGridLine(snapped, lastPoint);
+
+  if (
+    wallStartPoint.value &&
+    alignedPoint.x === wallStartPoint.value.x &&
+    alignedPoint.y === wallStartPoint.value.y &&
+    wallPoints.value.length > 2
+  ) {
+    wallClosed.value = true;
+    wallPreviewPoint.value = null;
+    return;
+  }
+
+  wallPoints.value.push(alignedPoint);
+  wallPreviewPoint.value = alignedPoint;
+};
+
+const wallPolylinePoints = computed(() => {
+  const points = wallPoints.value.map(point => `${point.x},${point.y}`);
+  if (wallPreviewPoint.value && !wallClosed.value) {
+    points.push(`${wallPreviewPoint.value.x},${wallPreviewPoint.value.y}`);
+  }
+  return points.join(' ');
+});
 
 const emit = defineEmits(['saved']);
 
@@ -614,6 +692,7 @@ const onWheel = (event: WheelEvent) => {
       </div>
       <button @click="save" class="btn btn-primary">Sauvegarder</button>
       <p class="hint">Glissez les éléments pour les placer.</p>
+      <p class="hint">Cliquez sur la grille pour tracer les murs, recliquez sur le point de départ pour fermer.</p>
     </div>
 
     <div class="canvas-area">
@@ -623,9 +702,28 @@ const onWheel = (event: WheelEvent) => {
             <path d="M 20 0 L 0 0 0 20" fill="none" stroke="#eee" stroke-width="1"/>
           </pattern>
         </defs>
-        <rect width="100%" height="100%" fill="url(#grid)" class="canvas-background" :transform="`translate(${panOffset.x % 20}, ${panOffset.y % 20})`" />
+        <rect width="100%" height="100%" fill="url(#grid)" class="canvas-background" :transform="`translate(${panOffset.x % 20}, ${panOffset.y % 20})`" @click="handleWallClick" />
 
         <g :transform="`scale(${zoomLevel}) translate(${panOffset.x}, ${panOffset.y})`">
+          <polygon
+            v-if="wallClosed && wallPoints.length"
+            :points="wallPoints.map(point => `${point.x},${point.y}`).join(' ')"
+            class="wall-shape"
+          />
+          <polyline
+            v-else-if="wallPolylinePoints"
+            :points="wallPolylinePoints"
+            class="wall-shape wall-preview"
+          />
+          <circle
+            v-for="(point, index) in wallPoints"
+            :key="`wall-point-${index}`"
+            :cx="point.x"
+            :cy="point.y"
+            r="3"
+            class="wall-point"
+          />
+
           <g v-for="(table, tIdx) in _tables" :key="tIdx">
             <g :transform="`rotate(${table.rotation || 0}, ${table.x + table.width / 2}, ${table.y + table.height / 2})`">
               <!-- Table -->
@@ -840,6 +938,22 @@ const onWheel = (event: WheelEvent) => {
 .table-rect.selected {
   stroke: #ff4500;
   stroke-width: 3;
+}
+.wall-shape {
+  fill: rgba(60, 60, 60, 0.15);
+  stroke: #2b2b2b;
+  stroke-width: 4;
+  stroke-linecap: square;
+  stroke-linejoin: miter;
+}
+.wall-shape.wall-preview {
+  fill: none;
+  stroke-dasharray: 6 4;
+}
+.wall-point {
+  fill: #ff4500;
+  stroke: #fff;
+  stroke-width: 1;
 }
 .chair-rect {
   fill: #555;
