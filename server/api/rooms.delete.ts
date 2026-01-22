@@ -1,4 +1,4 @@
-import { rooms, tables, chairs, reservations } from '~~/server/database/schema'
+import { rooms, tables, chairs, reservations, zones } from '~~/server/database/schema'
 import { eq, inArray } from 'drizzle-orm'
 
 export default defineEventHandler(async (event) => {
@@ -32,6 +32,8 @@ export default defineEventHandler(async (event) => {
       // 5. Supprimer les tables
       await tx.delete(tables).where(eq(tables.roomId, roomId))
     }
+
+    await tx.delete(zones).where(eq(zones.roomId, roomId))
 
     // 6. Supprimer la salle
     await tx.delete(rooms).where(eq(rooms.id, roomId))

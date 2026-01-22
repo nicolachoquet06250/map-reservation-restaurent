@@ -1,4 +1,4 @@
-import { rooms, tables, chairs, reservations, tableAttributes } from '~~/server/database/schema'
+import { rooms, tables, chairs, reservations, tableAttributes, zones } from '~~/server/database/schema'
 import { eq, inArray } from 'drizzle-orm'
 
 export default defineEventHandler(async (event) => {
@@ -137,6 +137,21 @@ export default defineEventHandler(async (event) => {
         }
       }
     }
+  }
+
+  const zonesFromRequest = body.zones || []
+  await db.delete(zones).where(eq(zones.roomId, roomId))
+  if (zonesFromRequest.length > 0) {
+    await db.insert(zones).values(
+      zonesFromRequest.map((zone: any) => ({
+        roomId,
+        type: zone.type,
+        x: zone.x,
+        y: zone.y,
+        width: zone.width,
+        height: zone.height
+      }))
+    )
   }
 
   return { success: true, roomId }

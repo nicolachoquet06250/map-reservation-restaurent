@@ -18,6 +18,16 @@ export const tables = mysqlTable('tables', {
   shape: varchar('shape', { length: 20 }).default('rectangle'), // 'rectangle', 'circle', 'L', 'U'
 });
 
+export const zones = mysqlTable('zones', {
+  id: int('id').primaryKey().autoincrement(),
+  roomId: int('room_id').notNull(),
+  type: varchar('type', { length: 20 }).notNull(),
+  x: float('x').notNull(),
+  y: float('y').notNull(),
+  width: float('width').notNull(),
+  height: float('height').notNull(),
+});
+
 export const tableAttributes = mysqlTable('table_attributes', {
   tableId: int('table_id').primaryKey(),
   lThicknessX: float('l_thickness_x'),

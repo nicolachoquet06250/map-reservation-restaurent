@@ -1,4 +1,4 @@
-import { rooms, tables, chairs, reservations, tableAttributes } from '~~/server/database/schema'
+import { rooms, tables, chairs, reservations, tableAttributes, zones } from '~~/server/database/schema'
 import {eq, sql} from 'drizzle-orm'
 
 export default defineEventHandler(async (event) => {
@@ -6,15 +6,16 @@ export default defineEventHandler(async (event) => {
   const query = getQuery(event)
   const roomId = Number(query.id)
 
-  if (!roomId) return { tables: [] }
+  if (!roomId) return { tables: [], zones: [] }
 
   const roomData = await db.query.rooms.findFirst({
     where: eq(rooms.id, roomId),
   })
 
-  if (!roomData) return { tables: [] }
+  if (!roomData) return { tables: [], zones: [] }
 
- const fullQueryTables = await db.select({
+ const [fullQueryTables, zoneRows] = await Promise.all([
+   db.select({
      id: tables.id,
      roomId: tables.roomId,
      name: tables.name,
@@ -47,7 +48,9 @@ export default defineEventHandler(async (event) => {
  })
      .from(tables)
      .leftJoin(tableAttributes, eq(tables.id, tableAttributes.tableId))
-     .where(eq(tables.roomId, roomId));
+     .where(eq(tables.roomId, roomId)),
+   db.select().from(zones).where(eq(zones.roomId, roomId))
+ ]);
 
   return {
     tables: fullQueryTables.map(r => ({
@@ -56,6 +59,15 @@ export default defineEventHandler(async (event) => {
             ? JSON.parse(r.extraAttributes)
             : r.extraAttributes,
         chairs: typeof r.chairs === 'string' ? JSON.parse(r.chairs) : (r.chairs || [])
+    })),
+    zones: zoneRows.map(zone => ({
+      id: zone.id,
+      roomId: zone.roomId,
+      type: zone.type,
+      x: zone.x,
+      y: zone.y,
+      width: zone.width,
+      height: zone.height
     }))
   }
 })
