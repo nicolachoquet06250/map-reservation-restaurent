@@ -1,0 +1,1 @@
+ALTER TABLE `room_zones` ADD `name` varchar(255);
