@@ -6,10 +6,15 @@ const props = defineProps<{
   roomId: number;
 }>();
 
-const { data: roomData, refresh } = await useFetch<{tables: Table[]}>(() => `/api/room?id=${props.roomId}`, {
+const { data: roomData, refresh } = await useFetch<{room: any, zones: any[], tables: Table[]}>(() => `/api/room?id=${props.roomId}`, {
   transform: (data) => {
     return {
-      tables: data.tables.map(t => ({
+      room: data.room,
+      zones: data.zones.map((z: any) => ({
+        ...z,
+        units: new Set(z.units.split(' '))
+      })),
+      tables: data.tables.map((t: any) => ({
         ...t,
         extraAttributes: t.extraAttributes || {
           lThicknessX: 40,
@@ -21,6 +26,23 @@ const { data: roomData, refresh } = await useFetch<{tables: Table[]}>(() => `/ap
     }
   }
 });
+
+const gridSize = 20;
+const getZoneCenter = (units: Set<string>) => {
+  if (units.size === 0) return { x: 0, y: 0 };
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  units.forEach(unit => {
+    const [x = 0, y = 0] = unit.split(',').map(Number);
+    if (x < minX) minX = x!;
+    if (x > maxX) maxX = x!;
+    if (y < minY) minY = y!;
+    if (y > maxY) maxY = y!;
+  });
+  return {
+    x: (minX + maxX) / 2 + gridSize / 2,
+    y: (minY + maxY) / 2 + gridSize / 2
+  };
+};
 const customerName = ref('');
 
 const selectedChairs = ref<number[]>([]);
@@ -191,6 +213,46 @@ const reserve = async () => {
         <rect width="100%" height="100%" fill="url(#grid)" class="canvas-background" :transform="`translate(${panOffset.x % 20}, ${panOffset.y % 20})`" />
 
         <g :transform="`scale(${zoomLevel}) translate(${panOffset.x}, ${panOffset.y})`">
+          <!-- Murs -->
+          <polygon
+            v-if="roomData?.room?.points"
+            :points="roomData.room.points"
+            class="wall-shape"
+          />
+
+          <!-- Zones et estrades -->
+          <g v-for="(zone, zIdx) in roomData?.zones" :key="`zone-${zIdx}`">
+            <rect
+              v-for="unit in Array.from(zone.units)"
+              :key="unit"
+              :x="unit.split(',')[0]"
+              :y="unit.split(',')[1]"
+              :width="gridSize"
+              :height="gridSize"
+              :fill="zone.type === 'zone' ? '#800020' : '#808080'"
+              fill-opacity="0.3"
+              stroke="white"
+              stroke-width="0.5"
+            />
+            <g v-if="zone.name" class="zone-label-group" style="opacity: 0.6;">
+              <rect
+                :x="getZoneCenter(zone.units).x - (zone.name.length * 4 + 10)"
+                :y="getZoneCenter(zone.units).y - 10"
+                :width="zone.name.length * 8 + 20"
+                :height="20"
+                rx="10"
+                class="zone-name-badge"
+              />
+              <text
+                :x="getZoneCenter(zone.units).x"
+                :y="getZoneCenter(zone.units).y"
+                class="zone-name-label"
+              >
+                {{ zone.name }}
+              </text>
+            </g>
+          </g>
+
           <g v-for="table in roomData?.tables" :key="table.id">
             <g :transform="`rotate(${table.rotation || 0}, ${Number(table.x) + Number(table.width) / 2}, ${Number(table.y) + Number(table.height) / 2})`">
               <!-- Table -->
@@ -199,6 +261,7 @@ const reserve = async () => {
                 :x="Number(table.x)" :y="Number(table.y)"
                 :width="Number(table.width)" :height="Number(table.height)"
                 class="table-rect"
+                style="fill-opacity: 0.8;"
                 @click="toggleTable(table)"
               />
               <ellipse
@@ -206,12 +269,14 @@ const reserve = async () => {
                 :cx="Number(table.x) + Number(table.width)/2" :cy="Number(table.y) + Number(table.height)/2"
                 :rx="Number(table.width)/2" :ry="Number(table.height)/2"
                 class="table-rect"
+                style="fill-opacity: 0.8;"
                 @click="toggleTable(table)"
               />
               <path
                 v-else-if="table.shape === 'L'"
                 :d="`M ${Number(table.x)} ${Number(table.y)} H ${Number(table.x) + Number(table.width)} V ${Number(table.y) + (table.extraAttributes?.lThicknessY || Number(table.height) * 0.4)} H ${Number(table.x) + (table.extraAttributes?.lThicknessX || Number(table.width) * 0.4)} V ${Number(table.y) + Number(table.height)} H ${Number(table.x)} Z`"
                 class="table-rect"
+                style="fill-opacity: 0.8;"
                 @click="toggleTable(table)"
               />
               <path
@@ -227,6 +292,7 @@ const reserve = async () => {
                   H ${Number(table.x)} 
                   Z`"
                 class="table-rect"
+                style="fill-opacity: 0.8;"
                 @click="toggleTable(table)"
               />
               <text
@@ -333,6 +399,31 @@ const reserve = async () => {
 }
 .table-rect:hover {
   stroke: #c4a484;
+}
+.wall-shape {
+  fill: rgba(60, 60, 60, 0.1);
+  stroke: #2b2b2b;
+  stroke-width: 4;
+  stroke-linecap: square;
+  stroke-linejoin: miter;
+  pointer-events: none;
+}
+.zone-name-label {
+  fill: white;
+  font-size: 10px;
+  font-weight: bold;
+  text-anchor: middle;
+  dominant-baseline: middle;
+  pointer-events: none;
+  user-select: none;
+}
+.zone-label-group {
+  pointer-events: none;
+}
+.zone-name-badge {
+  fill: rgba(0, 0, 0, 0.4);
+  stroke: rgba(255, 255, 255, 0.2);
+  stroke-width: 1;
 }
 .chair-rect {
   fill: #fff;
