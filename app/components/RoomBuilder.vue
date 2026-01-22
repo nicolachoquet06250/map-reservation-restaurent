@@ -76,6 +76,7 @@ const zoneDragStart = ref<{ x: number; y: number } | null>(null);
 const zoneDragEnd = ref<{ x: number; y: number } | null>(null);
 
 const showZoneNamingModal = ref(false);
+const showShortcutsModal = ref(false);
 const showDoorDropdown = ref(false);
 const newZoneName = ref('');
 const zoneNameInput = ref<HTMLInputElement | null>(null);
@@ -878,12 +879,84 @@ const onMouseMove = (event: MouseEvent) => {
         chair.y += dy;
       });
     }
+
+    // Aimantage si Ctrl est pressé
+    if (event.ctrlKey) {
+      const snapThreshold = 30;
+      let snapX = null;
+      let snapY = null;
+      let minDistX = snapThreshold;
+      let minDistY = snapThreshold;
+
+      _tables.value.forEach((otherTable, idx) => {
+        if (idx === draggingTable.value) return;
+        
+        const dx = Math.abs(table!.x - otherTable.x);
+        const dy = Math.abs(table!.y - otherTable.y);
+
+        if (dx < minDistX) {
+          minDistX = dx;
+          snapX = otherTable.x;
+        }
+        if (dy < minDistY) {
+          minDistY = dy;
+          snapY = otherTable.y;
+        }
+      });
+
+      const oldSnappedX = table!.x;
+      const oldSnappedY = table!.y;
+
+      if (snapX !== null) table!.x = snapX;
+      if (snapY !== null) table!.y = snapY;
+
+      // Déplacer les chaises proportionnellement à l'aimantage
+      const snapDx = table!.x - oldSnappedX;
+      const snapDy = table!.y - oldSnappedY;
+      if (snapDx !== 0 || snapDy !== 0) {
+        table?.chairs.forEach(chair => {
+          chair.x += snapDx;
+          chair.y += snapDy;
+        });
+      }
+    }
   } else if (draggingChair.value !== null) {
     const { tableIndex, chairIndex } = draggingChair.value;
     const table = _tables.value[tableIndex];
     const chair = table?.chairs[chairIndex];
     chair!.x = mouseX - offset.x - panOffset.value.x;
     chair!.y = mouseY - offset.y - panOffset.value.y;
+
+    // Aimantage si Ctrl est pressé
+    if (event.ctrlKey) {
+      const snapThreshold = 30;
+      let snapX = null;
+      let snapY = null;
+      let minDistX = snapThreshold;
+      let minDistY = snapThreshold;
+
+      _tables.value.forEach((t) => {
+        t.chairs.forEach((otherChair) => {
+          if (otherChair === chair) return;
+
+          const dx = Math.abs(chair!.x - otherChair.x);
+          const dy = Math.abs(chair!.y - otherChair.y);
+
+          if (dx < minDistX) {
+            minDistX = dx;
+            snapX = otherChair.x;
+          }
+          if (dy < minDistY) {
+            minDistY = dy;
+            snapY = otherChair.y;
+          }
+        });
+      });
+
+      if (snapX !== null) chair!.x = snapX;
+      if (snapY !== null) chair!.y = snapY;
+    }
+
     // Mettre à jour les positions relatives
     chair!.relativeX = (chair?.x ?? 0) - (table?.x ?? 0);
     chair!.relativeY = (chair?.y ?? 0) - (table?.y ?? 0);
@@ -1131,6 +1204,11 @@ const deselect = (event: MouseEvent) => {
       zoneDragEnd.value = zoneDragStart.value;
       return;
     }
+
+    if (event.ctrlKey && activeLayerType.value === 'tables') {
+      return;
+    }
+
     selectedTableIndex.value = null;
     selectedChairIndex.value = null;
     selectedDoorIndex.value = null;
@@ -1633,7 +1711,7 @@ const onWheel = (event: WheelEvent) => {
           </button>
         </div>
       </div>
-      <div style="padding-left: 20px; padding-bottom: 15px;">
+      <div style="padding-left: 20px; padding-bottom: 15px; display: flex; align-items: center; justify-content: space-between;">
         <p class="hint">
           <template v-if="!wallClosed">
             <span class="hint-icon">i</span>
@@ -1648,6 +1726,13 @@ const onWheel = (event: WheelEvent) => {
             Glissez les éléments pour les placer.
           </template>
         </p>
+
+        <div class="shortcuts-info" v-if="wallClosed">
+          <button class="btn btn-sm btn-ghost btn-info" @click="showShortcutsModal = true">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 6px;"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+            Raccourcis clavier
+          </button>
+        </div>
       </div>
     </div>
 
@@ -2006,6 +2091,53 @@ const onWheel = (event: WheelEvent) => {
             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 8px;"><path d="M12 5v14M5 12h14"/></svg>
             Créer la zone
           </button>
+        </div>
+
+        <!-- Modal pour les raccourcis clavier -->
+        <div v-if="showShortcutsModal" class="modal-overlay" @click="showShortcutsModal = false">
+          <div class="modal-content shortcuts-modal" @click.stop>
+            <div class="modal-header">
+              <h3>Raccourcis clavier</h3>
+              <button class="btn-close" @click="showShortcutsModal = false">&times;</button>
+            </div>
+            <div class="shortcuts-grid">
+              <div class="shortcut-item">
+                <span class="key">Ctrl</span> + <span class="key">C</span>
+                <span class="desc">Copier l'élément sélectionné</span>
+              </div>
+              <div class="shortcut-item">
+                <span class="key">Ctrl</span> + <span class="key">V</span>
+                <span class="desc">Coller l'élément</span>
+              </div>
+              <div class="shortcut-item">
+                <span class="key">Ctrl</span> + <span class="key">D</span>
+                <span class="desc">Dupliquer l'élément sélectionné</span>
+              </div>
+              <div class="shortcut-item">
+                <span class="key">Ctrl</span> + <span class="key">Z</span>
+                <span class="desc">Annuler</span>
+              </div>
+              <div class="shortcut-item">
+                <span class="key">Ctrl</span> + <span class="key">Y</span> / <span class="key">Maj</span> + <span class="key">Z</span>
+                <span class="desc">Rétablir</span>
+              </div>
+              <div class="shortcut-item">
+                <span class="key">Ctrl</span> + <span class="key">S</span>
+                <span class="desc">Sauvegarder</span>
+              </div>
+              <div class="shortcut-item">
+                <span class="key">Suppr</span> / <span class="key">Retour</span>
+                <span class="desc">Supprimer l'élément sélectionné</span>
+              </div>
+              <div class="shortcut-item">
+                <span class="key">Ctrl</span> + <span class="key">Drag</span>
+                <span class="desc">Aimantation (Alignement auto)</span>
+              </div>
+            </div>
+            <div class="modal-actions">
+              <button class="btn btn-primary" @click="showShortcutsModal = false">Fermer</button>
+            </div>
+          </div>
         </div>
       </Teleport>
 
@@ -2530,6 +2662,75 @@ const onWheel = (event: WheelEvent) => {
 }
 .canvas-svg.interacting {
   user-select: none;
+}
+.btn-info {
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  font-weight: 500;
+  padding: 4px 12px;
+  border-radius: 20px;
+  transition: all 0.2s;
+}
+.btn-info:hover {
+  background-color: #f1f5f9;
+  color: #0f172a;
+}
+.shortcuts-modal {
+  max-width: 500px !important;
+}
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+  border-bottom: 1px solid #e2e8f0;
+  padding-bottom: 0.75rem;
+}
+.modal-header h3 {
+  margin: 0;
+  color: #1e293b;
+}
+.btn-close {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  line-height: 1;
+  color: #94a3b8;
+  cursor: pointer;
+  padding: 0;
+}
+.btn-close:hover {
+  color: #475569;
+}
+.shortcuts-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+  margin-bottom: 1.5rem;
+}
+.shortcut-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.95rem;
+  color: #475569;
+}
+.key {
+  display: inline-block;
+  padding: 2px 6px;
+  background-color: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  font-family: monospace;
+  font-weight: 600;
+  color: #0f172a;
+  min-width: 24px;
+  text-align: center;
+}
+.desc {
+  margin-left: auto;
+  color: #64748b;
 }
 .properties-panel {
   position: absolute;
