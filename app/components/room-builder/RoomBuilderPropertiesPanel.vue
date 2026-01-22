@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { Door, Table } from '~/components/room-builder/types';
+import type { Door, Table } from '~/types';
 
 const props = defineProps<{
   tables: Table[];

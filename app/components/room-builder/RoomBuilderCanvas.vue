@@ -1,9 +1,7 @@
 <script setup lang="ts">
-import type { Ref } from 'vue';
-import type { Door, Table } from '~/components/room-builder/types';
+import type { Door, Table } from '~/types';
 
 const props = defineProps<{
-  svgCanvas: Ref<SVGElement | null>;
   zoomLevel: number;
   panOffset: { x: number; y: number };
   gridSize: number;
@@ -36,7 +34,7 @@ const props = defineProps<{
   getZoneCenter: (units: Set<string>) => { x: number; y: number };
   handleWallClick: (event: MouseEvent) => void;
   stopDrag: (event: MouseEvent) => void;
-  deselect: () => void;
+  deselect: (event: MouseEvent) => void;
   selectWall: (event: MouseEvent) => void;
   startDragWallSegment: (event: MouseEvent, segment: { index1: number; index2: number; isHorizontal: boolean }) => void;
   startDragDoor: (event: MouseEvent, index: number) => void;
@@ -47,11 +45,15 @@ const props = defineProps<{
   handleContextMenu: (event: MouseEvent) => void;
   deleteZone: (index: number) => void;
 }>();
+
+const svgCanvas = defineModel<SVGElement | null | undefined>('svgCanvas', {
+  required: true
+})
 </script>
 
 <template>
   <div class="canvas-area">
-    <svg :ref="props.svgCanvas" width="100%" height="100%" class="canvas-svg" :class="{ interacting: props.isInteracting }" @mousedown="props.deselect">
+    <svg :ref="svgCanvas" width="100%" height="100%" class="canvas-svg" :class="{ interacting: props.isInteracting }" @mousedown="props.deselect">
       <defs>
         <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">
           <path d="M 20 0 L 0 0 0 20" fill="none" stroke="#eee" stroke-width="1" />

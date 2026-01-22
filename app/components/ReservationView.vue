@@ -1,18 +1,23 @@
 <script setup lang="ts">
 import 'simple-notify/dist/simple-notify.css'
-import type {Table, Door} from "~/components/RoomBuilder.vue";
+import type {Table, Door} from "~/types";
 
 const props = defineProps<{
   roomId: number;
 }>();
 
-const { data: roomData, refresh } = await useFetch<{room: any, zones: any[], doors: Door[], tables: Table[]}>(() => `/api/room?id=${props.roomId}`, {
+const { data: roomData, refresh } = await useFetch<{
+  room: any,
+  zones: any[],
+  doors: Door[],
+  tables: Table[]
+}>(() => `/api/room?id=${props.roomId}`, {
   transform: (data) => {
     return {
       room: data.room,
       zones: data.zones.map((z: any) => ({
         ...z,
-        units: new Set(z.units.split(' '))
+        units: new Set(z.units.split(' ') as string[])
       })),
       doors: data.doors || [],
       tables: data.tables.map((t: any) => ({

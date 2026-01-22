@@ -1,6 +1,5 @@
 <script setup lang="ts">
 const props = defineProps<{
-  roomName: string;
   roomSlug: string | null;
   zoomLevel: number;
   undoDisabled: boolean;
@@ -15,8 +14,10 @@ const props = defineProps<{
   showDoorDropdown: boolean;
 }>();
 
+const roomName = defineModel<string>('roomName')
+const selectedZoneType = defineModel<'zone' | 'estrade' | 'terrasse'>('selectedZoneType')
+
 const emit = defineEmits<{
-  (e: 'update:roomName', value: string): void;
   (e: 'generateUrl'): void;
   (e: 'undo'): void;
   (e: 'redo'): void;
@@ -24,7 +25,6 @@ const emit = defineEmits<{
   (e: 'addTable'): void;
   (e: 'toggleDoorDropdown'): void;
   (e: 'addDoor', value: 'simple' | 'double'): void;
-  (e: 'update:selectedZoneType', value: 'zone' | 'estrade' | 'terrasse'): void;
   (e: 'validateZone'): void;
   (e: 'resetWalls'): void;
   (e: 'save'): void;
@@ -32,14 +32,6 @@ const emit = defineEmits<{
   (e: 'zoomOut'): void;
   (e: 'showShortcuts'): void;
 }>();
-
-const onRoomNameInput = (event: Event) => {
-  emit('update:roomName', (event.target as HTMLInputElement).value);
-};
-
-const onZoneTypeChange = (event: Event) => {
-  emit('update:selectedZoneType', (event.target as HTMLSelectElement).value as 'zone' | 'estrade' | 'terrasse');
-};
 </script>
 
 <template>
@@ -49,7 +41,7 @@ const onZoneTypeChange = (event: Event) => {
         <div class="room-info">
           <div class="name-field">
             <span class="label">Salle :</span>
-            <input :value="props.roomName" placeholder="Nom de la salle" @input="onRoomNameInput" />
+            <input v-model="roomName" placeholder="Nom de la salle" />
             <button
               v-if="!props.roomSlug"
               class="btn btn-sm btn-primary"
@@ -104,7 +96,7 @@ const onZoneTypeChange = (event: Event) => {
 
         <div v-if="props.activeLayerType === 'zones'" class="toolbar-group">
           <div class="zone-selector">
-            <select :value="props.selectedZoneType" class="form-select btn-sm" @change="onZoneTypeChange">
+            <select v-model="selectedZoneType" class="form-select btn-sm">
               <option value="zone">Zones</option>
               <option value="estrade">Estrades</option>
               <option value="terrasse">Terrasses</option>
@@ -157,7 +149,7 @@ const onZoneTypeChange = (event: Event) => {
         </template>
       </p>
 
-      <div class="shortcuts-info" v-if="props.wallClosed">
+      <div class="shortcuts-info" v-if="props.wallClosed" style="margin-right: 20px;">
         <button class="btn btn-sm btn-ghost btn-info" @click="emit('showShortcuts')">
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 6px;"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
           Raccourcis clavier

@@ -1,6 +1,4 @@
 <script setup lang="ts">
-import type { Ref } from 'vue';
-
 const props = defineProps<{
   showDeleteWallModal: boolean;
   showZoneNamingModal: boolean;
@@ -9,8 +7,11 @@ const props = defineProps<{
   contextMenuPos: { x: number; y: number };
   selectedZoneType: 'zone' | 'estrade' | 'terrasse';
   newZoneName: string;
-  zoneNameInput: Ref<HTMLInputElement | null>;
 }>();
+
+const zoneNameInput = defineModel<HTMLInputElement | null>('zoneNameInput', {
+  required: true
+});
 
 const emit = defineEmits<{
   (e: 'closeDeleteWallModal'): void;
@@ -50,7 +51,7 @@ const onZoneNameInput = (event: Event) => {
             placeholder="Nom de la zone"
             @input="onZoneNameInput"
             @keyup.enter="emit('confirmCreateZone')"
-            :ref="props.zoneNameInput"
+            :ref="zoneNameInput"
             style="width: 100%; padding: 0.5rem; border: 1px solid #cbd5e1; border-radius: 6px;"
           />
         </div>

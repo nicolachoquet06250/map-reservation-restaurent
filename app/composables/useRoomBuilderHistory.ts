@@ -1,5 +1,5 @@
 import type { Ref } from 'vue';
-import type { Door, Table } from '~/components/room-builder/types';
+import type { Door, Table } from '~/types';
 
 export const useRoomBuilderHistory = (
   tables: Ref<Table[]>,

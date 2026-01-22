@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import 'simple-notify/dist/simple-notify.css'
-import type { Chair, Door, Table } from '~/components/room-builder/types';
+import type { Chair, Door, Table } from '~/types';
 import { useRoomBuilderGrid } from '~/composables/useRoomBuilderGrid';
 import { useRoomBuilderHistory } from '~/composables/useRoomBuilderHistory';
 import { useRoomBuilderZoom } from '~/composables/useRoomBuilderZoom';
@@ -42,7 +42,7 @@ const showZoneNamingModal = ref(false);
 const showShortcutsModal = ref(false);
 const showDoorDropdown = ref(false);
 const newZoneName = ref('');
-const zoneNameInput = ref<HTMLInputElement | null>(null);
+const zoneNameInput = useTemplateRef<HTMLInputElement | null>('zoneNameInput');
 const showContextMenu = ref(false);
 const contextMenuPos = ref({ x: 0, y: 0 });
 
@@ -73,7 +73,19 @@ const wallSegments = computed(() => {
       isHorizontal: Math.abs(p1!.y - p2!.y) < 0.1
     });
   }
-  return segments;
+  return segments as {
+    p1: {
+      x: number
+      y: number
+    }
+    p2: {
+      x: number
+      y: number
+    }
+    index1: number
+    index2: number
+    isHorizontal: boolean
+  }[];
 });
 
 const selectWall = (event?: MouseEvent) => {
@@ -102,7 +114,7 @@ const performResetWalls = async () => {
   wallClosed.value = false;
   wallSelected.value = false;
   showDeleteWallModal.value = false;
-  
+
   // Optionnel: Sauvegarder immédiatement la suppression
   await save();
 };
@@ -1517,20 +1529,17 @@ const onWheel = (event: WheelEvent) => {
 <template>
   <div class="builder-container" @mousemove="onMouseMove" @mouseup="stopDrag($event)" @wheel="onWheel" @click="showContextMenu = false">
     <RoomBuilderToolbar
-      :room-name="roomName"
-      :room-slug="roomSlug"
-      :zoom-level="zoomLevel"
+      v-model:room-name="roomName"
+      v-model:selected-zone-type="selectedZoneType"
+      :room-slug="roomSlug" :zoom-level="zoomLevel"
       :undo-disabled="undoStack.length === 0"
       :redo-disabled="redoStack.length === 0"
-      :room-layers="roomLayers"
-      :active-layer-id="activeLayerId"
+      :room-layers="roomLayers" :active-layer-id="activeLayerId"
       :active-layer-type="activeLayerType"
-      :selected-zone-type="selectedZoneType"
       :current-zone-units-size="currentZoneUnits.size"
-      :wall-closed="wallClosed"
-      :wall-selected="wallSelected"
+      :wall-closed="wallClosed" :wall-selected="wallSelected"
       :show-door-dropdown="showDoorDropdown"
-      @update:roomName="roomName = $event"
+
       @generate-url="save"
       @undo="undo"
       @redo="redo"
@@ -1538,7 +1547,6 @@ const onWheel = (event: WheelEvent) => {
       @add-table="addTable"
       @toggle-door-dropdown="showDoorDropdown = !showDoorDropdown"
       @add-door="handleAddDoor"
-      @update:selectedZoneType="selectedZoneType = $event"
       @validate-zone="validateZone"
       @reset-walls="resetWalls"
       @save="save"
@@ -1548,42 +1556,26 @@ const onWheel = (event: WheelEvent) => {
     />
 
     <RoomBuilderCanvas
-      :svg-canvas="svgCanvas"
-      :zoom-level="zoomLevel"
-      :pan-offset="panOffset"
-      :grid-size="gridSize"
-      :is-interacting="isInteracting"
-      :wall-closed="wallClosed"
-      :wall-points="wallPoints"
-      :wall-selected="wallSelected"
-      :wall-segments="wallSegments"
-      :wall-polyline-points="wallPolylinePoints"
-      :active-layer-type="activeLayerType"
-      :room-zones-data="roomZonesData"
-      :current-zone-units="currentZoneUnits"
-      :selected-zone-type="selectedZoneType"
-      :is-drawing-zone="isDrawingZone"
-      :zone-drag-start="zoneDragStart"
-      :zone-drag-end="zoneDragEnd"
-      :doors="doors_"
-      :selected-door-index="selectedDoorIndex"
-      :tables="_tables"
+      :svg-canvas="svgCanvas" :zoom-level="zoomLevel"
+      :pan-offset="panOffset" :grid-size="gridSize"
+      :is-interacting="isInteracting" :wall-closed="wallClosed"
+      :wall-points="wallPoints" :wall-selected="wallSelected"
+      :wall-segments="wallSegments" :wall-polyline-points="wallPolylinePoints"
+      :active-layer-type="activeLayerType" :room-zones-data="roomZonesData"
+      :current-zone-units="currentZoneUnits" :selected-zone-type="selectedZoneType"
+      :is-drawing-zone="isDrawingZone" :zone-drag-start="zoneDragStart"
+      :zone-drag-end="zoneDragEnd" :doors="doors_"
+      :selected-door-index="selectedDoorIndex" :tables="_tables"
       :selected-table-index="selectedTableIndex"
       :selected-chair-index="selectedChairIndex"
       :dragging-table="draggingTable"
       :is-table-in-valid-area="isTableInValidArea"
-      :get-zone-center="getZoneCenter"
-      :handle-wall-click="handleWallClick"
-      :stop-drag="stopDrag"
-      :deselect="deselect"
-      :select-wall="selectWall"
-      :start-drag-wall-segment="startDragWallSegment"
-      :start-drag-door="startDragDoor"
-      :start-drag-table="startDragTable"
-      :start-rotate-table="startRotateTable"
-      :start-drag-chair="startDragChair"
-      :start-rotate-chair="startRotateChair"
-      :handle-context-menu="handleContextMenu"
+      :get-zone-center="getZoneCenter" :handle-wall-click="handleWallClick"
+      :stop-drag="stopDrag" :deselect="deselect"
+      :select-wall="selectWall" :start-drag-wall-segment="startDragWallSegment"
+      :start-drag-door="startDragDoor" :start-drag-table="startDragTable"
+      :start-rotate-table="startRotateTable" :start-drag-chair="startDragChair"
+      :start-rotate-chair="startRotateChair" :handle-context-menu="handleContextMenu"
       :delete-zone="deleteZone"
     />
 
@@ -1596,6 +1588,7 @@ const onWheel = (event: WheelEvent) => {
       :selected-zone-type="selectedZoneType"
       :new-zone-name="newZoneName"
       :zone-name-input="zoneNameInput"
+
       @close-delete-wall-modal="showDeleteWallModal = false"
       @perform-reset-walls="performResetWalls"
       @close-zone-naming-modal="showZoneNamingModal = false"
@@ -1606,23 +1599,21 @@ const onWheel = (event: WheelEvent) => {
     />
 
     <RoomBuilderPropertiesPanel
-      :tables="_tables"
-      :doors="doors_"
+      :tables="_tables" :doors="doors_"
       :selected-table-index="selectedTableIndex"
       :selected-chair-index="selectedChairIndex"
       :selected-door-index="selectedDoorIndex"
-      :flip-chair="flipChair"
-      :remove-chair="removeChair"
+      :flip-chair="flipChair" :remove-chair="removeChair"
       :clear-selected-chair="clearSelectedChair"
-      :flip-table="flipTable"
-      :add-chair="addChair"
+      :flip-table="flipTable" :add-chair="addChair"
       :remove-table="removeTable"
       :ensure-table-extra-attributes="ensureTableExtraAttributes"
       :align-door-to-wall="alignDoorToWall"
-      :flip-door="flipDoor"
-      :remove-door="removeDoor"
+      :flip-door="flipDoor" :remove-door="removeDoor"
     />
   </div>
 </template>
 
-<style src=\"./room-builder/room-builder.css\"></style>
+<style>
+@import "./room-builder/room-builder.css";
+</style>

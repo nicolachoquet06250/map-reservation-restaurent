@@ -3,7 +3,7 @@ const props = defineProps<{
   roomId?: number;
 }>();
 
-const { data: reservations, refresh } = await useFetch(() => 
+const { data: reservations, refresh } = await useFetch<any[]>(() =>
   props.roomId ? `/api/reservations?roomId=${props.roomId}` : '/api/reservations'
 );
 
