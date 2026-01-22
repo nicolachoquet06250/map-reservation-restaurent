@@ -3,7 +3,15 @@ import { mysqlTable, varchar, int, float, timestamp } from 'drizzle-orm/mysql-co
 export const rooms = mysqlTable('rooms', {
   id: int('id').primaryKey().autoincrement(),
   name: varchar('name', { length: 255 }).notNull(),
+  points: varchar('points', { length: 2000 }), // Liste de points x,y séparés par des espaces
   createdAt: timestamp('created_at').defaultNow(),
+});
+
+export const layers = mysqlTable('layers', {
+  id: int('id').primaryKey().autoincrement(),
+  roomId: int('room_id').notNull(),
+  name: varchar('name', { length: 255 }).notNull(),
+  type: varchar('type', { length: 50 }).notNull(), // 'zones', 'tables'
 });
 
 export const tables = mysqlTable('tables', {
@@ -42,4 +50,12 @@ export const reservations = mysqlTable('reservations', {
   customerName: varchar('customer_name', { length: 255 }).notNull(),
   reservationDate: timestamp('reservation_date').notNull(),
   createdAt: timestamp('created_at').defaultNow(),
+});
+
+export const roomZones = mysqlTable('room_zones', {
+  id: int('id').primaryKey().autoincrement(),
+  roomId: int('room_id').notNull(),
+  name: varchar('name', { length: 255 }), // Nom de la zone ou estrade
+  type: varchar('type', { length: 20 }).notNull(), // 'zone', 'estrade'
+  units: varchar('units', { length: 5000 }).notNull(), // Liste de coordonnées x,y de cellules de grille (ex: "20,20 40,20")
 });

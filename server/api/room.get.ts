@@ -1,4 +1,4 @@
-import { rooms, tables, chairs, reservations, tableAttributes } from '~~/server/database/schema'
+import { rooms, tables, chairs, reservations, tableAttributes, layers, roomZones } from '~~/server/database/schema'
 import {eq, sql} from 'drizzle-orm'
 
 export default defineEventHandler(async (event) => {
@@ -6,13 +6,17 @@ export default defineEventHandler(async (event) => {
   const query = getQuery(event)
   const roomId = Number(query.id)
 
-  if (!roomId) return { tables: [] }
+  if (!roomId) return { room: null, tables: [], layers: [], zones: [] }
 
-  const roomData = await db.query.rooms.findFirst({
-    where: eq(rooms.id, roomId),
-  })
+  const [roomData, roomLayers, roomZonesData] = await Promise.all([
+    db.query.rooms.findFirst({
+      where: eq(rooms.id, roomId),
+    }),
+    db.select().from(layers).where(eq(layers.roomId, roomId)),
+    db.select().from(roomZones).where(eq(roomZones.roomId, roomId))
+  ])
 
-  if (!roomData) return { tables: [] }
+  if (!roomData) return { room: null, tables: [], layers: [], zones: [] }
 
  const fullQueryTables = await db.select({
      id: tables.id,
@@ -50,6 +54,9 @@ export default defineEventHandler(async (event) => {
      .where(eq(tables.roomId, roomId));
 
   return {
+    room: roomData,
+    layers: roomLayers,
+    zones: roomZonesData,
     tables: fullQueryTables.map(r => ({
         ...r,
         extraAttributes: typeof r.extraAttributes === 'string'

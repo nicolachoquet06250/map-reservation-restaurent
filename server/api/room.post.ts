@@ -1,4 +1,4 @@
-import { rooms, tables, chairs, reservations, tableAttributes } from '~~/server/database/schema'
+import { rooms, tables, chairs, reservations, tableAttributes, layers, roomZones } from '~~/server/database/schema'
 import { eq, inArray } from 'drizzle-orm'
 
 export default defineEventHandler(async (event) => {
@@ -11,7 +11,8 @@ export default defineEventHandler(async (event) => {
   // Si pas de roomId, on crée une nouvelle salle
   if (!roomId) {
     const [newRoom] = await db.insert(rooms).values({
-      name: body.roomName || 'Nouvelle salle'
+      name: body.roomName || 'Nouvelle salle',
+      points: body.points || null
     })
     roomId = newRoom.insertId
   } else {
@@ -22,14 +23,53 @@ export default defineEventHandler(async (event) => {
     if (existingRoom.length === 0) {
       await db.insert(rooms).values({
         id: roomId,
-        name: body.roomName || 'Main Room'
+        name: body.roomName || 'Main Room',
+        points: body.points || null
       })
-    } else if (body.roomName && body.roomName !== existingRoom[0].name) {
-      // Mettre à jour le nom si fourni
-      await db.update(rooms)
-          .set({name: body.roomName})
-          .where(eq(rooms.id, roomId))
+    } else {
+      // Mettre à jour le nom et les points si fournis
+      const updateData: any = {}
+      if (body.roomName && body.roomName !== existingRoom[0].name) {
+        updateData.name = body.roomName
+      }
+      if (body.points !== undefined) {
+        updateData.points = body.points
+      }
+
+      if (Object.keys(updateData).length > 0) {
+        await db.update(rooms)
+            .set(updateData)
+            .where(eq(rooms.id, roomId))
+      }
     }
+  }
+
+  // --- GESTION DES LAYERS ---
+  const existingLayers = await db.select().from(layers).where(eq(layers.roomId, roomId))
+  if (existingLayers.length === 0) {
+    await db.insert(layers).values([
+      { roomId, name: 'Zones & estrades', type: 'zones' },
+      { roomId, name: 'Tables & chaises', type: 'tables' }
+    ])
+  } else if (existingLayers.length < 2) {
+    // S'il manque un layer (cas de migration ou bug), on s'assure d'avoir les deux
+    const hasZones = existingLayers.some(l => l.type === 'zones');
+    const hasTables = existingLayers.some(l => l.type === 'tables');
+    if (!hasZones) await db.insert(layers).values({ roomId, name: 'Zones & estrades', type: 'zones' });
+    if (!hasTables) await db.insert(layers).values({ roomId, name: 'Tables & chaises', type: 'tables' });
+  }
+
+  // --- GESTION DES ZONES ET ESTRADES ---
+  // On remplace tout par simplicité pour ce layer
+  await db.delete(roomZones).where(eq(roomZones.roomId, roomId))
+  if (body.zones && body.zones.length > 0) {
+    const zonesToInsert = body.zones.map((z: any) => ({
+      roomId,
+      name: z.name || null,
+      type: z.type,
+      units: z.units
+    }));
+    await db.insert(roomZones).values(zonesToInsert)
   }
 
   // --- GESTION DES TABLES ET CHAISES ---
