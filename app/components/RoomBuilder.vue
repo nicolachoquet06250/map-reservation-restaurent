@@ -771,6 +771,7 @@ const isPointOnSegment = (px: number, py: number, x1: number, y1: number, x2: nu
 const emit = defineEmits(['saved']);
 
 const validateZone = () => {
+  showContextMenu.value = false;
   if (currentZoneUnits.value.size > 0) {
     newZoneName.value = '';
     showZoneNamingModal.value = true;
@@ -821,6 +822,7 @@ const getZoneCenter = (units: Set<string>) => {
 };
 
 const handleKeyDown = (event: KeyboardEvent) => {
+  // if (event.target.tagName)
   const isCtrl = event.ctrlKey || event.metaKey;
 
   // Undo / Redo
@@ -1237,7 +1239,7 @@ const onWheel = (event: WheelEvent) => {
             class="wall-point"
           />
 
-          <g v-if="activeLayerType === 'tables'">
+          <g :class="{ 'inactive-layer': activeLayerType !== 'tables' }" :style="activeLayerType !== 'tables' ? 'pointer-events: none;' : ''">
             <g v-for="(table, tIdx) in _tables" :key="tIdx">
               <g :transform="`rotate(${table.rotation || 0}, ${table.x + table.width / 2}, ${table.y + table.height / 2})`">
                 <!-- Table -->
@@ -1247,7 +1249,7 @@ const onWheel = (event: WheelEvent) => {
                     :width="table.width" :height="table.height"
                     class="table-rect"
                     :class="{ selected: selectedTableIndex === tIdx && !selectedChairIndex }"
-                    @mousedown="startDragTable($event, tIdx)"
+                    @mousedown="activeLayerType === 'tables' && startDragTable($event, tIdx)"
                 />
                 <ellipse
                     v-else-if="table.shape === 'circle'"
@@ -1255,14 +1257,14 @@ const onWheel = (event: WheelEvent) => {
                     :rx="table.width/2" :ry="table.height/2"
                     class="table-rect"
                     :class="{ selected: selectedTableIndex === tIdx && !selectedChairIndex }"
-                    @mousedown="startDragTable($event, tIdx)"
+                    @mousedown="activeLayerType === 'tables' && startDragTable($event, tIdx)"
                 />
                 <path
                     v-else-if="table.shape === 'L'"
                     :d="`M ${table.x} ${table.y} H ${table.x + table.width} V ${table.y + (table.extraAttributes?.lThicknessY || table.height * 0.4)} H ${table.x + (table.extraAttributes?.lThicknessX || table.width * 0.4)} V ${table.y + table.height} H ${table.x} Z`"
                     class="table-rect"
                     :class="{ selected: selectedTableIndex === tIdx && !selectedChairIndex }"
-                    @mousedown="startDragTable($event, tIdx)"
+                    @mousedown="activeLayerType === 'tables' && startDragTable($event, tIdx)"
                 />
                 <path
                     v-else-if="table.shape === 'U'"
@@ -1278,7 +1280,7 @@ const onWheel = (event: WheelEvent) => {
                     Z`"
                     class="table-rect"
                     :class="{ selected: selectedTableIndex === tIdx && !selectedChairIndex }"
-                    @mousedown="startDragTable($event, tIdx)"
+                    @mousedown="activeLayerType === 'tables' && startDragTable($event, tIdx)"
                 />
 
                 <text
@@ -1293,7 +1295,7 @@ const onWheel = (event: WheelEvent) => {
                 </text>
 
                 <!-- Poignées de rotation sur les coins (visibles seulement si sélectionnée) -->
-                <template v-if="selectedTableIndex === tIdx && !selectedChairIndex">
+                <template v-if="activeLayerType === 'tables' && selectedTableIndex === tIdx && !selectedChairIndex">
                   <circle
                       v-for="(pos, pIdx) in [
                       {x: table.x, y: table.y},
@@ -1317,10 +1319,10 @@ const onWheel = (event: WheelEvent) => {
                     class="chair-rect"
                     :class="{ selected: selectedChairIndex?.tableIndex === tIdx && selectedChairIndex?.chairIndex === cIdx }"
                     :transform="`rotate(${chair.rotation || 0}, ${chair.x + 15}, ${chair.y + 15})`"
-                    @mousedown="startDragTable($event, tIdx)"
+                    @mousedown="activeLayerType === 'tables' && startDragChair($event, tIdx, cIdx)"
                 />
                 <!-- Poignées de rotation sur les coins (visibles seulement si sélectionnée) -->
-                <template v-if="selectedChairIndex?.tableIndex === tIdx && selectedChairIndex?.chairIndex === cIdx">
+                <template v-if="activeLayerType === 'tables' && selectedChairIndex?.tableIndex === tIdx && selectedChairIndex?.chairIndex === cIdx">
                   <circle
                       v-for="(pos, pIdx) in [
                       {x: chair.x, y: chair.y},
@@ -1339,7 +1341,7 @@ const onWheel = (event: WheelEvent) => {
             </g>
           </g>
 
-          <g v-if="activeLayerType === 'zones'">
+          <g :class="{ 'inactive-layer': activeLayerType !== 'zones' }" :style="activeLayerType !== 'zones' ? 'pointer-events: none;' : ''">
             <!-- Zones et estrades enregistrées -->
             <g v-for="(zone, zIdx) in roomZonesData" :key="`zone-${zIdx}`">
               <rect
@@ -1353,7 +1355,7 @@ const onWheel = (event: WheelEvent) => {
                 fill-opacity="0.6"
                 stroke="white"
                 stroke-width="0.5"
-                @contextmenu.prevent="deleteZone(zIdx)"
+                @contextmenu.prevent="activeLayerType === 'zones' && deleteZone(zIdx)"
               >
                 <title v-if="zone.name">{{ zone.name }}</title>
               </rect>
@@ -1377,7 +1379,7 @@ const onWheel = (event: WheelEvent) => {
             </g>
 
             <!-- Sélection en cours -->
-            <g @contextmenu="handleContextMenu">
+            <g v-if="activeLayerType === 'zones'" @contextmenu="handleContextMenu">
               <rect
                 v-for="unit in Array.from(currentZoneUnits)"
                 :key="`current-${unit}`"
@@ -1395,7 +1397,7 @@ const onWheel = (event: WheelEvent) => {
 
             <!-- Aperçu du drag -->
             <rect
-              v-if="isDrawingZone && zoneDragStart && zoneDragEnd"
+              v-if="activeLayerType === 'zones' && isDrawingZone && zoneDragStart && zoneDragEnd"
               :x="Math.min(zoneDragStart.x, zoneDragEnd.x)"
               :y="Math.min(zoneDragStart.y, zoneDragEnd.y)"
               :width="Math.abs(zoneDragEnd.x - zoneDragStart.x) + gridSize"
@@ -1520,6 +1522,11 @@ const onWheel = (event: WheelEvent) => {
 </style>
 
 <style scoped>
+.inactive-layer {
+  opacity: 0.3;
+  transition: opacity 0.3s ease;
+}
+
 .builder-container {
   display: flex;
   flex-direction: column;
