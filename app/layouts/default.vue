@@ -90,16 +90,20 @@ body {
   align-items: center;
   justify-content: space-between;
   background: #1a1a1a;
-  padding: 0.5rem 1rem;
+  padding: 0.25rem 1rem;
   color: white;
 }
 .logo {
   font-weight: bold;
-  font-size: 1.2rem;
+  font-size: 1.1rem;
 }
 .main-nav {
   display: flex;
   gap: 0.5rem;
+}
+.main-nav .btn {
+  padding: 0.25rem 0.75rem;
+  font-size: 0.85rem;
 }
 .main-nav .btn.active {
   background: #2563eb;

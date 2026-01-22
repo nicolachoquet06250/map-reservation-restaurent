@@ -192,15 +192,15 @@ const reserve = async () => {
 <template>
   <div class="reservation-container">
     <div class="header">
-      <h1>Réservez votre place</h1>
+      <h1 class="header-title">Réservez votre place</h1>
       <div class="zoom-controls">
         <button class="btn btn-sm btn-secondary" @click="zoomOut" :disabled="zoomLevel <= 0.2">-</button>
         <span class="zoom-text">{{ Math.round(zoomLevel * 100) }}%</span>
         <button class="btn btn-sm btn-secondary" @click="zoomIn" :disabled="zoomLevel >= 3">+</button>
       </div>
       <div class="form">
-        <input v-model="customerName" placeholder="Votre nom" />
-        <button class="btn btn-primary" @click="reserve">Réserver</button>
+        <input v-model="customerName" placeholder="Votre nom" class="form-input" />
+        <button class="btn btn-primary btn-sm" @click="reserve">Réserver</button>
       </div>
     </div>
 
@@ -416,21 +416,28 @@ const reserve = async () => {
   height: 100vh;
 }
 .header {
-  padding: 1rem;
+  padding: 0.25rem 1rem;
   background: #333;
   color: white;
   display: flex;
   justify-content: space-between;
   align-items: center;
 }
+.header-title {
+  font-size: 1.1rem;
+  margin: 0;
+  font-weight: 600;
+}
 .form {
   display: flex;
-  gap: 1rem;
+  gap: 0.5rem;
+  align-items: center;
 }
-.form input {
-  padding: 0.5rem;
+.form-input {
+  padding: 0.25rem 0.5rem;
   border-radius: 4px;
   border: none;
+  font-size: 0.85rem;
 }
 .zoom-controls {
   display: flex;

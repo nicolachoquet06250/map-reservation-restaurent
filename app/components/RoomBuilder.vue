@@ -1661,9 +1661,9 @@ const onWheel = (event: WheelEvent) => {
             </button>
             <div class="door-dropdown-container">
               <button class="btn btn-secondary btn-sm" @click="showDoorDropdown = !showDoorDropdown" data-action="add-door-dropdown" title="Ajouter une porte">
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px;"><path d="M3 3h18v18H3z"/><path d="M9 3v18"/><path d="M15 3v18"/><path d="M3 9h18"/><path d="M3 15h18"/></svg>
+                <svg data-action="add-door-dropdown" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px;"><path d="M3 3h18v18H3z"/><path d="M9 3v18"/><path d="M15 3v18"/><path d="M3 9h18"/><path d="M3 15h18"/></svg>
                 Porte
-                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-left: 4px;"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                <svg data-action="add-door-dropdown" xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-left: 4px;"><polyline points="6 9 12 15 18 9"></polyline></svg>
               </button>
               <div v-if="showDoorDropdown" class="door-dropdown">
                 <button @click="addDoor('simple'); showDoorDropdown = false">Porte simple</button>
@@ -1706,7 +1706,7 @@ const onWheel = (event: WheelEvent) => {
             </div>
           </div>
           <button @click="save" class="btn btn-primary btn-save">
-            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 6px;"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px;"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
             Sauvegarder
           </button>
         </div>
@@ -2423,10 +2423,11 @@ const onWheel = (event: WheelEvent) => {
 .btn-save {
   display: flex;
   align-items: center;
-  padding: 0.5rem 1.25rem;
+  padding: 0.35rem 1rem;
   font-weight: 600;
-  border-radius: 8px;
-  box-shadow: 0 4px 6px -1px rgba(59, 130, 246, 0.2);
+  border-radius: 6px;
+  font-size: 0.85rem;
+  box-shadow: 0 2px 4px -1px rgba(59, 130, 246, 0.2);
 }
 
 .wall-options {

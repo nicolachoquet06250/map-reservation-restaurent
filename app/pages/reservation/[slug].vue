@@ -52,7 +52,7 @@ const selectedRoom = computed(() => roomData.value?.room || null);
 
 .room-selector-bar {
   background: #f3f4f6;
-  padding: 0.5rem 1rem;
+  padding: 0.35rem 1rem;
   border-bottom: 1px solid #e5e7eb;
   display: flex;
   align-items: center;
