@@ -267,8 +267,8 @@ onUnmounted(() => {
 <template>
   <div class="builder-container" @mousemove="onMouseMove" @mouseup="stopDrag($event)" @wheel="onWheel" @click="closeContextMenu">
     <div style="display: flex; flex-direction: column; border-bottom: 1px solid #e2e8f0; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
-      <div class="toolbar">
-        <div class="toolbar-left">
+      <Toolbar>
+        <template #left>
           <div class="room-info">
             <div class="name-field">
               <span class="label">Salle :</span>
@@ -292,9 +292,9 @@ onUnmounted(() => {
               </button>
             </div>
           </div>
-        </div>
+        </template>
 
-        <div class="toolbar-center">
+        <template #center>
           <div class="toolbar-group">
             <div class="history-controls">
               <button class="btn btn-sm btn-secondary" @click="undo" :disabled="undoStack.length === 0" title="Annuler (Ctrl+Z)">↶</button>
@@ -357,9 +357,9 @@ onUnmounted(() => {
               </button>
             </div>
           </div>
-        </div>
+        </template>
 
-        <div class="toolbar-right">
+        <template #right>
           <div class="toolbar-group">
             <div class="zoom-controls">
               <button class="btn btn-sm btn-ghost" @click="zoomOut" :disabled="zoomLevel <= 0.2">-</button>
@@ -371,8 +371,8 @@ onUnmounted(() => {
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px;"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
             Sauvegarder
           </button>
-        </div>
-      </div>
+        </template>
+      </Toolbar>
       <div style="padding-left: 20px; padding-bottom: 15px; display: flex; align-items: center; justify-content: space-between;">
         <p class="hint">
           <template v-if="!wallClosed">
@@ -789,78 +789,32 @@ onUnmounted(() => {
         </ContextMenu>
       </Teleport>
 
-      <div v-if="selectedTableIndex !== null || selectedDoorIndex !== null" class="properties-panel">
-        <div v-if="selectedTableIndex !== null">
-          <div v-if="selectedChairIndex">
-            <h3>Chaise</h3>
-            <p class="parent-info">Table: <strong>{{ _tables[selectedChairIndex.tableIndex]?.name }}</strong></p>
-            <label>Rotation (°): <input type="number" v-model.number="_tables[selectedChairIndex.tableIndex]!.chairs[selectedChairIndex.chairIndex]!.rotation" /></label>
-            <div class="actions">
-              <button @click="flipChair(selectedChairIndex.tableIndex, selectedChairIndex.chairIndex)" class="btn btn-primary" title="Faire pivoter la chaise de 180°">Pivoter 180°</button>
-              <button @click="removeChair(selectedChairIndex.tableIndex, selectedChairIndex.chairIndex)" class="btn btn-danger">Supprimer</button>
-              <button @click="selectedChairIndex = null" class="btn btn-secondary">Retour</button>
-            </div>
-          </div>
-          <div v-else>
-            <h3>Table</h3>
-            <label>Nom: <input v-model="_tables[selectedTableIndex]!.name" /></label>
-            <label>Forme:
-              <select v-model="_tables[selectedTableIndex]!.shape" @change="() => {
-                if (!_tables[selectedTableIndex!]!.extraAttributes) {
-                  _tables[selectedTableIndex!]!.extraAttributes = {
-                    lThicknessX: 40,
-                    lThicknessY: 40,
-                    uThickness: 30,
-                    uBaseThickness: 30
-                  }
-                }
-              }">
-                <option value="rectangle">Rectangle</option>
-                <option value="circle">Cercle</option>
-                <option value="L">Table en L</option>
-                <option value="U">Table en U</option>
-              </select>
-            </label>
-            <div class="properties-group">
-              <label>Largeur: <input type="number" v-model.number="_tables[selectedTableIndex]!.width" /></label>
-              <label>Hauteur: <input type="number" v-model.number="_tables[selectedTableIndex]!.height" /></label>
-            </div>
-            <label>Rotation (°): <input type="number" v-model.number="_tables[selectedTableIndex]!.rotation" /></label>
-
-            <div v-if="_tables[selectedTableIndex]?.shape === 'L'" class="properties-group">
-              <label>Épaisseur H: <input type="number" v-model.number="_tables[selectedTableIndex]!.extraAttributes!.lThicknessX" /></label>
-              <label>Épaisseur V: <input type="number" v-model.number="_tables[selectedTableIndex]!.extraAttributes!.lThicknessY" /></label>
-            </div>
-
-            <div v-if="_tables[selectedTableIndex]?.shape === 'U'" class="properties-group">
-              <label>Épaisseur branches: <input type="number" v-model.number="_tables[selectedTableIndex]!.extraAttributes!.uThickness" /></label>
-              <label>Épaisseur base: <input type="number" v-model.number="_tables[selectedTableIndex]!.extraAttributes!.uBaseThickness" /></label>
-            </div>
-
-            <div class="actions">
-              <button @click="flipTable(selectedTableIndex)" class="btn btn-primary" title="Faire pivoter la table de 180°">Pivoter 180°</button>
-              <button @click="addChair(selectedTableIndex)" class="btn btn-primary">Ajouter une chaise</button>
-              <button @click="removeTable(selectedTableIndex)" class="btn btn-danger">Supprimer la table</button>
-            </div>
-          </div>
-        </div>
-
-        <div v-else-if="selectedDoorIndex !== null">
-          <div class="panel-header">
-            <h3>Porte {{ doors_[selectedDoorIndex]!.type === 'double' ? 'double' : 'simple' }}</h3>
-          </div>
-
-          <div class="form-group">
-            <label>Largeur (cm)</label>
-            <input type="number" v-model.number="doors_[selectedDoorIndex]!.width" step="5" @input="alignDoorToWall(selectedDoorIndex)" />
-          </div>
-
-          <div class="actions">
-            <button @click="flipDoor(selectedDoorIndex)" class="btn btn-primary" title="Faire pivoter la porte de 180°">Pivoter 180°</button>
-            <button @click="removeDoor(selectedDoorIndex)" class="btn btn-danger">Supprimer la porte</button>
-          </div>
-        </div>
-      </div>
+      <PropertiesPanel
+        :selected-table-index="selectedTableIndex"
+        :selected-chair-index="selectedChairIndex"
+        :selected-door-index="selectedDoorIndex"
+        :tables="tables"
+        :doors="doors"
+        @update-table-shape="index => {
+          if (!tables[index]!.extraAttributes) {
+            tables[index]!.extraAttributes = {
+              lThicknessX: 40,
+              lThicknessY: 40,
+              uThickness: 30,
+              uBaseThickness: 30
+            }
+          }
+        }"
+        @flip-chair="flipChair"
+        @remove-chair="removeChair"
+        @back-from-chair="selectedChairIndex = null"
+        @flip-table="flipTable"
+        @add-chair="addChair"
+        @remove-table="removeTable"
+        @flip-door="flipDoor"
+        @remove-door="removeDoor"
+        @align-door-to-wall="alignDoorToWall"
+      />
     </div>
   </div>
 </template>
@@ -881,31 +835,6 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   height: 100%;
-}
-.toolbar {
-  flex-shrink: 0;
-  padding: 0.75rem 1.5rem;
-  background: #ffffff;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  z-index: 20;
-}
-
-.toolbar-left, .toolbar-right {
-  display: flex;
-  align-items: center;
-  gap: 1.5rem;
-}
-
-.toolbar-center {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  background: #f8fafc;
-  padding: 0.4rem 1rem;
-  border-radius: 9999px;
-  border: 1px solid #f1f5f9;
 }
 
 .toolbar-group {
@@ -1264,71 +1193,6 @@ onUnmounted(() => {
 .desc {
   margin-left: auto;
   color: #64748b;
-}
-.properties-panel {
-  position: absolute;
-  top: 1rem;
-  right: 1rem;
-  width: 280px;
-  background: white;
-  border: 1px solid #e2e8f0;
-  padding: 1.25rem;
-  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-  border-radius: 8px;
-  max-height: calc(100% - 2rem - 40px);
-  overflow-y: auto;
-  z-index: 10;
-}
-.properties-panel h3 {
-  margin: 0 0 1rem 0;
-  font-size: 1.1rem;
-  font-weight: 600;
-  color: #1f2937;
-  border-bottom: 1px solid #f3f4f6;
-  padding-bottom: 0.5rem;
-}
-.parent-info {
-  font-size: 0.85rem;
-  color: #6b7280;
-  margin-bottom: 1rem;
-}
-.parent-info strong {
-  color: #374151;
-}
-.properties-panel label {
-  display: block;
-  margin-bottom: 1rem;
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: #4b5563;
-}
-.properties-panel input, .properties-panel select {
-  width: calc(100% - 10px);
-  margin-top: 0.25rem;
-  padding: 0.5rem;
-  border: 1px solid #d1d5db;
-  border-radius: 4px;
-  font-size: 0.9rem;
-  color: #1f2937;
-  transition: border-color 0.2s;
-}
-.properties-panel input:focus, .properties-panel select:focus {
-  outline: none;
-  border-color: #2563eb;
-  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.1);
-}
-.properties-group {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.75rem;
-}
-.actions {
-  margin-top: 1.5rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-  border-top: 1px solid #f3f4f6;
-  padding-top: 1rem;
 }
 .zoom-controls {
   display: flex;
