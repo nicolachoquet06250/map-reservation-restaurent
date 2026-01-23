@@ -26,10 +26,8 @@ const selectedChairIndex = ref<{ tableIndex: number; chairIndex: number } | null
 
 const { zoomLevel, panOffset, svgCanvas, isPanning, handlePan, onWheel, zoomIn, zoomOut } = useZoom();
 const { snapToGrid, alignToGridLine, getGridPointFromEvent, getGridCellFromEvent } = useGrid({
-  gridSize,
-  zoomLevel,
-  panOffset,
-  svgCanvas
+  gridSize, zoomLevel,
+  panOffset, svgCanvas
 });
 
 const dragOffset = { x: 0, y: 0 };
@@ -37,89 +35,51 @@ const dragOffset = { x: 0, y: 0 };
 const { getPlatformDefaultName } = usePlateform(roomZonesData);
 
 const {
-  roomName,
-  roomSlug,
-  undoStack,
-  redoStack,
-  wallPoints,
-  wallStartPoint,
-  wallPreviewPoint,
-  wallClosed,
-  wallSelected,
-  showDeleteWallModal,
-  draggingWallSegment,
-  wallSegments,
-  wallPolylinePoints,
-  doors,
-  draggingDoor,
-  rotatingDoor,
+  roomName, roomSlug, undoStack,
+  redoStack, wallPoints, wallStartPoint,
+  wallClosed, wallSelected,
+  showDeleteWallModal, draggingWallSegment,
+  wallSegments, wallPolylinePoints,
+  doors, draggingDoor, rotatingDoor,
   selectedDoorIndex,
-  takeSnapshot,
-  undo,
-  redo,
-  selectWall,
-  resetWalls,
-  performResetWalls,
-  addDoor,
-  flipDoor,
-  removeDoor,
-  startDragDoor,
-  startRotateDoor,
-  isPointInRoom,
-  alignDoorToWall,
-  handleDoorMouseMove,
-  handleWallSegmentDrag,
-  startDragWallSegment,
-  updateWallPreview,
+  takeSnapshot, undo, redo,
+  selectWall, resetWalls,
+  performResetWalls, addDoor,
+  flipDoor, removeDoor, startDragDoor,
+  isPointInRoom, alignDoorToWall,
+  handleDoorMouseMove, handleWallSegmentDrag,
+  startDragWallSegment, updateWallPreview,
   handleWallClick: handleWallClickCore,
-  loadRoom,
-  save,
-  copyReservationLink
+  loadRoom, save, copyReservationLink
 } = useRoom({
   roomId: toRef(props, 'roomId'),
   initialRoomName: props.roomName,
   roomNameSource: toRef(props, 'roomName'),
-  tables,
-  roomZonesData,
-  roomLayers,
-  activeLayerId,
-  zoomLevel,
-  panOffset,
-  svgCanvas,
-  dragOffset,
+  tables, roomZonesData,
+  roomLayers, activeLayerId,
+  zoomLevel, panOffset,
+  svgCanvas, dragOffset,
   selectedTableIndex,
   selectedChairIndex,
   onSaved: () => emit('saved')
 });
 
 const {
-  selectedZoneType,
-  currentZoneUnits,
-  isDrawingZone,
-  zoneDragStart,
-  zoneDragEnd,
-  showZoneNamingModal,
-  newZoneName,
-  zoneNameInput,
-  showContextMenu,
-  contextMenuPos,
+  selectedZoneType, currentZoneUnits,
+  isDrawingZone, zoneDragStart,
+  zoneDragEnd, showZoneNamingModal,
+  newZoneName, zoneNameInput,
+  showContextMenu, contextMenuPos,
   activeLayerType,
-  isPointInValidArea,
-  validateZone,
-  confirmCreateZone,
-  handleContextMenu,
-  deleteZone,
-  getZoneCenter,
-  handleZoneMouseMove,
-  handleZoneStopDrag,
+  isPointInValidArea, validateZone,
+  confirmCreateZone, handleContextMenu,
+  deleteZone, getZoneCenter,
+  handleZoneMouseMove, handleZoneStopDrag,
   startZoneDrawing
 } = useZones({
-  gridSize,
-  isPointInRoom,
-  roomZonesData,
-  roomLayers,
-  activeLayerId,
-  save,
+  gridSize, roomZonesData,
+  roomLayers, activeLayerId,
+  isPointInRoom, save,
   getDefaultZoneName: (type) => {
     if (type === 'estrade') {
       return getPlatformDefaultName();
@@ -132,42 +92,22 @@ const {
 });
 
 const {
-  draggingTable,
-  draggingChair,
-  rotatingTable,
-  rotatingChair,
+  draggingTable, draggingChair,
+  rotatingTable, rotatingChair,
   isInteracting: isTableInteracting,
-  addTable,
-  addChair,
-  removeTable,
-  removeChair,
-  flipTable,
-  flipChair,
-  startDragTable,
-  startDragChair,
-  startRotateTable,
-  startRotateChair,
-  handleTableMouseMove,
-  handleTableStopDrag,
-  resetInteractions,
-  duplicateChair,
-  copyChair,
-  duplicateTable,
-  copyTable,
-  pasteFromClipboard
+  addTable, addChair, removeTable,
+  removeChair, flipTable, flipChair,
+  startDragTable, startDragChair,
+  startRotateTable, startRotateChair,
+  handleTableMouseMove, handleTableStopDrag,
+  resetInteractions, duplicateChair,
+  copyChair, duplicateTable, copyTable,
+  pasteFromClipboard, isTableInValidArea
 } = useTables({
-  tables,
-  gridSize,
-  zoomLevel,
-  panOffset,
-  svgCanvas,
-  dragOffset,
-  wallPoints,
-  snapToGrid,
-  isPointInValidArea,
-  takeSnapshot,
-  selectedTableIndex,
-  selectedChairIndex
+  tables, gridSize, zoomLevel, panOffset,
+  svgCanvas, dragOffset, wallPoints,
+  selectedTableIndex, selectedChairIndex,
+  snapToGrid, isPointInValidArea, takeSnapshot
 });
 
 const _tables = tables;
@@ -324,7 +264,6 @@ onMounted(async () => {
   await loadRoom();
   window.addEventListener('keydown', handleKeyDown);
   window.addEventListener('click', (e) => {
-    console.log((e.target as HTMLElement), (e.target as HTMLElement).getAttribute('data-action'))
     if ((e.target as HTMLElement).getAttribute('data-action') !== 'add-door-dropdown') {
       showDoorDropdown.value = false;
     }
