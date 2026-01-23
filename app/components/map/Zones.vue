@@ -1,16 +1,16 @@
 <script setup lang="ts">
-import type {RoomZone} from "~/types/room";
+import type {Point, RoomZone} from "~/types/room";
 
 const props = defineProps<{
   isActive: boolean,
   data: RoomZone[],
   gridSize: number,
-  getZoneCenter: (units: Set<string>) => { x: number, y: number },
+  getZoneCenter: (units: Set<string>) => Point,
   currentZoneUnits: Set<string>,
   selectedZoneType: 'zone' | 'estrade' | 'terrasse',
   isDrawingZone: boolean,
-  zoneDragStart: { x: number, y: number } | null,
-  zoneDragEnd: { x: number, y: number } | null,
+  zoneDragStart: Point | null,
+  zoneDragEnd: Point | null,
 }>();
 
 const emit = defineEmits<{

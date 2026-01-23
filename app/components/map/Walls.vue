@@ -26,12 +26,21 @@ defineEmits<{
 }>();
 
 const previewPolyline = computed(() => {
-  if (props.polylinePoints && props.polylinePoints.trim().length > 0) return props.polylinePoints;
   if (props.closed) return '';
-  const points = [...props.points];
-  if (props.previewPoint) points.push(props.previewPoint);
+
+  if (props.previewPoint) {
+    const points = [...props.points, props.previewPoint];
+    if (points.length < 2) return '';
+    return points.map(point => `${point.x},${point.y}`).join(' ');
+  }
+
+  if (props.polylinePoints?.trim().length) {
+    return props.polylinePoints.trim();
+  }
+
+  const points = props.points.map(point => `${point.x},${point.y}`);
   if (points.length < 2) return '';
-  return points.map(p => `${p.x},${p.y}`).join(' ');
+  return points.join(' ');
 });
 </script>
 

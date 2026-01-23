@@ -22,14 +22,17 @@ export const useGrid = ({ gridSize, zoomLevel, panOffset, svgCanvas }: UseGridOp
     return { x: lastPoint.x, y: point.y };
   };
 
-  const getGridPointFromEvent = (event: MouseEvent) => {
-    if (!svgCanvas.value) return snapToGrid({ x: 0, y: 0 });
+  const getRawPointFromEvent = (event: MouseEvent) => {
+    if (!svgCanvas.value) return { x: 0, y: 0 };
     const rect = svgCanvas.value.getBoundingClientRect();
-    const rawPoint = {
+    return {
       x: (event.clientX - rect.left) / zoomLevel.value - panOffset.value.x,
       y: (event.clientY - rect.top) / zoomLevel.value - panOffset.value.y
     };
-    return snapToGrid(rawPoint);
+  };
+
+  const getGridPointFromEvent = (event: MouseEvent) => {
+    return snapToGrid(getRawPointFromEvent(event));
   };
 
   const getGridCellFromEvent = (event: MouseEvent) => {
@@ -44,6 +47,7 @@ export const useGrid = ({ gridSize, zoomLevel, panOffset, svgCanvas }: UseGridOp
     gridSize,
     snapToGrid,
     alignToGridLine,
+    getRawPointFromEvent,
     getGridPointFromEvent,
     getGridCellFromEvent
   };

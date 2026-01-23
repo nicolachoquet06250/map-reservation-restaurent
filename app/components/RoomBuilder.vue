@@ -13,6 +13,7 @@ import Grid from "~/components/Grid.vue";
 import Zones from "~/components/map/Zones.vue";
 import Walls from "~/components/map/Walls.vue";
 import Tables from "~/components/map/Tables.vue";
+import {computed} from "vue";
 
 const dragOffset = { x: 0, y: 0 };
 
@@ -34,6 +35,7 @@ const selectedChairIndex = ref<{ tableIndex: number; chairIndex: number } | null
 const { zoomLevel, panOffset, svgCanvas, isPanning, handlePan, onWheel, zoomIn, zoomOut } = useZoom();
 const {
   snapToGrid, alignToGridLine,
+  getRawPointFromEvent,
   getGridPointFromEvent, getGridCellFromEvent
 } = useGrid({
   gridSize, zoomLevel,
@@ -141,7 +143,7 @@ const onMouseMove = (event: MouseEvent) => {
       rotatingChair.value === null &&
       draggingWallSegment.value === null &&
       !isPanning.value
-  ) updateWallPreview(event, getGridPointFromEvent, alignToGridLine);
+  ) updateWallPreview(event, getRawPointFromEvent, alignToGridLine);
 };
 
 const stopDrag = async (event: MouseEvent) => {
@@ -270,7 +272,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="builder-container" @mousemove="onMouseMove" @mouseup="stopDrag($event)" @wheel="onWheel" @click="closeContextMenu">
+  <div class="builder-container" @mouseup="stopDrag($event)" @wheel="onWheel" @click="closeContextMenu">
     <div style="display: flex; flex-direction: column; border-bottom: 1px solid #e2e8f0; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
       <Toolbar>
         <template #left>
@@ -404,7 +406,7 @@ onUnmounted(() => {
     </div>
 
     <div class="canvas-area">
-      <svg ref="svgCanvas" width="100%" height="100%" class="canvas-svg" :class="{ interacting: isInteracting }" @mousedown="deselect">
+      <svg ref="svgCanvas" width="100%" height="100%" class="canvas-svg" :class="{ interacting: isInteracting }" @mousemove="onMouseMove" @mousedown="deselect">
         <Grid
             :doors="_doors" :pan-offset="panOffset"
             @click="handleWallClick" @mouseup="stopDrag($event)" :zoom-level="zoomLevel"

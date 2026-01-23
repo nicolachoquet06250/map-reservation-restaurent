@@ -17,7 +17,6 @@ const close = () => {
       class="custom-context-menu"
       :style="{ top: position.y + 'px', left: position.x + 'px' }"
       @click.stop
-      v-click-outside="close"
     >
       <slot />
     </div>

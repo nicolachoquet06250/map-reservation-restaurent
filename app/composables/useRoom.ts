@@ -1,5 +1,5 @@
 import type { Ref } from 'vue';
-import type { Door, RoomLayer, RoomZone, Table } from '~/types/room';
+import type {Door, Point, RoomLayer, RoomZone, Table} from '~/types/room';
 
 interface UseRoomOptions {
   roomId: Ref<number>;
@@ -361,12 +361,13 @@ export const useRoom = ({
 
   const updateWallPreview = (
     event: MouseEvent,
-    getGridPointFromEvent: (event: MouseEvent) => { x: number; y: number },
-    alignToGridLine: (point: { x: number; y: number }, lastPoint: { x: number; y: number }) => { x: number; y: number }
+    getPointFromEvent: (event: MouseEvent) => Point,
+    alignToGridLine: (point: Point, lastPoint: Point) => Point
   ) => {
     if (!wallStartPoint.value || wallClosed.value) return;
-    const snapped = getGridPointFromEvent(event);
+    const snapped = getPointFromEvent(event);
     const lastPoint = wallPoints.value[wallPoints.value.length - 1] ?? wallStartPoint.value;
+    console.log(snapped, lastPoint, alignToGridLine(snapped, lastPoint));
     wallPreviewPoint.value = alignToGridLine(snapped, lastPoint);
   };
 
