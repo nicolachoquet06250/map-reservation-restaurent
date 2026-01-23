@@ -1,9 +1,9 @@
-
 <script setup lang="ts">
 import 'simple-notify/dist/simple-notify.css'
 import type { RoomLayer, RoomZone, Table } from '~/types/room';
 import { useGrid } from '~/composables/useGrid';
 import { usePlateform } from '~/composables/usePlateform';
+import { useModal } from '~/composables/useModal';
 import { useRoom } from '~/composables/useRoom';
 import { useTables } from '~/composables/useTables';
 import { useZones } from '~/composables/useZones';
@@ -73,6 +73,7 @@ const {
   activeLayerType,
   isPointInValidArea, validateZone,
   confirmCreateZone, handleContextMenu,
+  closeContextMenu,
   deleteZone, getZoneCenter,
   handleZoneMouseMove, handleZoneStopDrag,
   startZoneDrawing
@@ -112,7 +113,7 @@ const {
 
 const _tables = tables;
 const doors_ = doors;
-const showShortcutsModal = ref(false);
+const { isOpen: showShortcutsModal, open: openShortcutsModal, close: closeShortcutsModal } = useModal();
 const showDoorDropdown = ref(false);
 
 const isInteracting = computed(() => isTableInteracting.value || isPanning.value);
@@ -127,14 +128,14 @@ const onMouseMove = (event: MouseEvent) => {
   handleWallSegmentDrag(event, getGridPointFromEvent);
 
   if (
-    wallStartPoint.value &&
-    !wallClosed.value &&
-    draggingTable.value === null &&
-    draggingChair.value === null &&
-    rotatingTable.value === null &&
-    rotatingChair.value === null &&
-    draggingWallSegment.value === null &&
-    !isPanning.value
+      wallStartPoint.value &&
+      !wallClosed.value &&
+      draggingTable.value === null &&
+      draggingChair.value === null &&
+      rotatingTable.value === null &&
+      rotatingChair.value === null &&
+      draggingWallSegment.value === null &&
+      !isPanning.value
   ) {
     updateWallPreview(event, getGridPointFromEvent, alignToGridLine);
   }
@@ -276,7 +277,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="builder-container" @mousemove="onMouseMove" @mouseup="stopDrag($event)" @wheel="onWheel" @click="showContextMenu = false">
+  <div class="builder-container" @mousemove="onMouseMove" @mouseup="stopDrag($event)" @wheel="onWheel" @click="closeContextMenu">
     <div style="display: flex; flex-direction: column; border-bottom: 1px solid #e2e8f0; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
       <div class="toolbar">
         <div class="toolbar-left">
@@ -284,19 +285,19 @@ onUnmounted(() => {
             <div class="name-field">
               <span class="label">Salle :</span>
               <input v-model="roomName" placeholder="Nom de la salle" />
-              <button 
-                v-if="!roomSlug" 
-                class="btn btn-sm btn-primary" 
-                style="margin-left: 8px;"
-                @click="save"
+              <button
+                  v-if="!roomSlug"
+                  class="btn btn-sm btn-primary"
+                  style="margin-left: 8px;"
+                  @click="save"
               >
                 Générer une url
               </button>
-              <button 
-                v-else
-                class="btn btn-sm btn-secondary" 
-                style="margin-left: 8px; display: flex; align-items: center; gap: 4px;"
-                @click="copyReservationLink"
+              <button
+                  v-else
+                  class="btn btn-sm btn-secondary"
+                  style="margin-left: 8px; display: flex; align-items: center; gap: 4px;"
+                  @click="copyReservationLink"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
                 Copier le lien
@@ -401,7 +402,7 @@ onUnmounted(() => {
         </p>
 
         <div class="shortcuts-info" v-if="wallClosed">
-          <button class="btn btn-sm btn-ghost btn-info" @click="showShortcutsModal = true">
+          <button class="btn btn-sm btn-ghost btn-info" @click="openShortcutsModal">
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 6px;"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
             Raccourcis clavier
           </button>
@@ -419,10 +420,10 @@ onUnmounted(() => {
             <rect width="10000" height="10000" x="-5000" y="-5000" fill="white" />
             <g v-for="(door, dIdx) in doors_" :key="`mask-door-${dIdx}`">
               <rect
-                :x="door.x" :y="door.y"
-                :width="door.width" :height="door.height"
-                fill="black"
-                :transform="`rotate(${door.rotation || 0}, ${door.x + door.width / 2}, ${door.y + door.height / 2})`"
+                  :x="door.x" :y="door.y"
+                  :width="door.width" :height="door.height"
+                  fill="black"
+                  :transform="`rotate(${door.rotation || 0}, ${door.x + door.width / 2}, ${door.y + door.height / 2})`"
               />
             </g>
           </mask>
@@ -431,51 +432,51 @@ onUnmounted(() => {
 
         <g :transform="`scale(${zoomLevel}) translate(${panOffset.x}, ${panOffset.y})`">
           <polygon
-            v-if="wallClosed && wallPoints.length"
-            :points="wallPoints.map(p => `${p.x},${p.y}`).join(' ')"
-            class="wall-shape"
-            :class="{ selected: wallSelected }"
-            mask="url(#wallMask)"
-            @mousedown="selectWall($event)"
-            @click="handleWallClick"
+              v-if="wallClosed && wallPoints.length"
+              :points="wallPoints.map(p => `${p.x},${p.y}`).join(' ')"
+              class="wall-shape"
+              :class="{ selected: wallSelected }"
+              mask="url(#wallMask)"
+              @mousedown="selectWall($event)"
+              @click="handleWallClick"
           />
           <polyline
-            v-else-if="wallPolylinePoints"
-            :points="wallPolylinePoints"
-            class="wall-shape wall-preview"
+              v-else-if="wallPolylinePoints"
+              :points="wallPolylinePoints"
+              class="wall-shape wall-preview"
           />
 
           <g :class="{ 'inactive-layer': activeLayerType !== 'zones' }" :style="activeLayerType !== 'zones' ? 'pointer-events: none;' : ''">
             <!-- Zones et estrades enregistrées -->
             <g v-for="(zone, zIdx) in roomZonesData" :key="`zone-${zIdx}`">
               <rect
-                v-for="unit in Array.from(zone.units)"
-                :key="unit"
-                :x="unit.split(',')[0]"
-                :y="unit.split(',')[1]"
-                :width="gridSize"
-                :height="gridSize"
-                :fill="zone.type === 'zone' ? '#800020' : (zone.type === 'estrade' ? '#808080' : '#4a90e2')"
-                fill-opacity="0.6"
-                stroke="white"
-                stroke-width="0.5"
-                @contextmenu.prevent="activeLayerType === 'zones' && deleteZone(zIdx)"
+                  v-for="unit in Array.from(zone.units)"
+                  :key="unit"
+                  :x="unit.split(',')[0]"
+                  :y="unit.split(',')[1]"
+                  :width="gridSize"
+                  :height="gridSize"
+                  :fill="zone.type === 'zone' ? '#800020' : (zone.type === 'estrade' ? '#808080' : '#4a90e2')"
+                  fill-opacity="0.6"
+                  stroke="white"
+                  stroke-width="0.5"
+                  @contextmenu.prevent="activeLayerType === 'zones' && deleteZone(zIdx)"
               >
                 <title v-if="zone.name">{{ zone.name }}</title>
               </rect>
               <g v-if="zone.name" class="zone-label-group">
                 <rect
-                  :x="getZoneCenter(zone.units).x - (zone.name.length * 4 + 10)"
-                  :y="getZoneCenter(zone.units).y - 10"
-                  :width="zone.name.length * 8 + 20"
-                  :height="20"
-                  rx="10"
-                  class="zone-name-badge"
+                    :x="getZoneCenter(zone.units).x - (zone.name.length * 4 + 10)"
+                    :y="getZoneCenter(zone.units).y - 10"
+                    :width="zone.name.length * 8 + 20"
+                    :height="20"
+                    rx="10"
+                    class="zone-name-badge"
                 />
                 <text
-                  :x="getZoneCenter(zone.units).x"
-                  :y="getZoneCenter(zone.units).y"
-                  class="zone-name-label"
+                    :x="getZoneCenter(zone.units).x"
+                    :y="getZoneCenter(zone.units).y"
+                    class="zone-name-label"
                 >
                   {{ zone.name }}
                 </text>
@@ -485,124 +486,124 @@ onUnmounted(() => {
             <!-- Sélection en cours -->
             <g v-if="activeLayerType === 'zones'" @contextmenu="handleContextMenu">
               <rect
-                v-for="unit in Array.from(currentZoneUnits)"
-                :key="`current-${unit}`"
-                :x="unit.split(',')[0]"
-                :y="unit.split(',')[1]"
-                :width="gridSize"
-                :height="gridSize"
-                :fill="selectedZoneType === 'zone' ? '#800020' : (selectedZoneType === 'estrade' ? '#808080' : '#4a90e2')"
-                fill-opacity="0.8"
-                stroke="#fff"
-                stroke-width="1"
-                pointer-events="auto"
+                  v-for="unit in Array.from(currentZoneUnits)"
+                  :key="`current-${unit}`"
+                  :x="unit.split(',')[0]"
+                  :y="unit.split(',')[1]"
+                  :width="gridSize"
+                  :height="gridSize"
+                  :fill="selectedZoneType === 'zone' ? '#800020' : (selectedZoneType === 'estrade' ? '#808080' : '#4a90e2')"
+                  fill-opacity="0.8"
+                  stroke="#fff"
+                  stroke-width="1"
+                  pointer-events="auto"
               />
             </g>
 
             <!-- Aperçu du drag -->
             <rect
-              v-if="activeLayerType === 'zones' && isDrawingZone && zoneDragStart && zoneDragEnd"
-              :x="Math.min(zoneDragStart.x, zoneDragEnd.x)"
-              :y="Math.min(zoneDragStart.y, zoneDragEnd.y)"
-              :width="Math.abs(zoneDragEnd.x - zoneDragStart.x) + gridSize"
-              :height="Math.abs(zoneDragEnd.y - zoneDragStart.y) + gridSize"
-              fill="rgba(0, 123, 255, 0.2)"
-              stroke="#007bff"
-              stroke-width="1"
-              stroke-dasharray="4"
-              pointer-events="none"
+                v-if="activeLayerType === 'zones' && isDrawingZone && zoneDragStart && zoneDragEnd"
+                :x="Math.min(zoneDragStart.x, zoneDragEnd.x)"
+                :y="Math.min(zoneDragStart.y, zoneDragEnd.y)"
+                :width="Math.abs(zoneDragEnd.x - zoneDragStart.x) + gridSize"
+                :height="Math.abs(zoneDragEnd.y - zoneDragStart.y) + gridSize"
+                fill="rgba(0, 123, 255, 0.2)"
+                stroke="#007bff"
+                stroke-width="1"
+                stroke-dasharray="4"
+                pointer-events="none"
             />
           </g>
 
           <!-- Segments de mur interactifs pour le déplacement -->
           <template v-if="wallClosed && wallSelected">
             <line
-              v-for="(segment, index) in wallSegments"
-              :key="`segment-${index}`"
-              :x1="segment.p1!.x"
-              :y1="segment.p1!.y"
-              :x2="segment.p2!.x"
-              :y2="segment.p2!.y"
-              class="wall-segment-handle"
-              :class="{ 'horizontal': segment.isHorizontal, 'vertical': !segment.isHorizontal }"
-              @mousedown.stop="startDragWallSegment($event, segment)"
+                v-for="(segment, index) in wallSegments"
+                :key="`segment-${index}`"
+                :x1="segment.p1!.x"
+                :y1="segment.p1!.y"
+                :x2="segment.p2!.x"
+                :y2="segment.p2!.y"
+                class="wall-segment-handle"
+                :class="{ 'horizontal': segment.isHorizontal, 'vertical': !segment.isHorizontal }"
+                @mousedown.stop="startDragWallSegment($event, segment)"
             />
           </template>
 
           <circle
-            v-if="!wallClosed"
-            v-for="(point, index) in wallPoints"
-            :key="`wall-point-${index}`"
-            :cx="point.x"
-            :cy="point.y"
-            r="3"
-            class="wall-point"
+              v-if="!wallClosed"
+              v-for="(point, index) in wallPoints"
+              :key="`wall-point-${index}`"
+              :cx="point.x"
+              :cy="point.y"
+              r="3"
+              class="wall-point"
           />
 
           <g :class="{ 'inactive-layer': activeLayerType !== 'tables' }" :style="activeLayerType !== 'tables' ? 'pointer-events: none;' : ''">
-              <g v-for="(door, dIdx) in doors_" :key="`door-${dIdx}`">
-                <g :transform="`rotate(${door.rotation || 0}, ${door.x + door.width / 2}, ${door.y + door.height / 2})`">
-                  <rect
+            <g v-for="(door, dIdx) in doors_" :key="`door-${dIdx}`">
+              <g :transform="`rotate(${door.rotation || 0}, ${door.x + door.width / 2}, ${door.y + door.height / 2})`">
+                <rect
                     :x="door.x" :y="door.y"
                     :width="door.width" :height="door.height"
                     class="door-rect"
                     :class="{ selected: selectedDoorIndex === dIdx }"
                     @mousedown="activeLayerType === 'tables' && startDragDoor($event, dIdx)"
-                  />
-                  <!-- Représentation du sens d'ouverture -->
-                  <template v-if="door.type === 'double'">
-                    <!-- Côté gauche -->
-                    <path
+                />
+                <!-- Représentation du sens d'ouverture -->
+                <template v-if="door.type === 'double'">
+                  <!-- Côté gauche -->
+                  <path
                       :d="`M ${door.x + door.width / 2} ${door.y + door.height} A ${door.width / 2} ${door.width / 2} 0 0 0 ${door.x} ${door.y + door.height - door.width / 2}`"
                       fill="none"
                       stroke="#333"
                       stroke-width="2"
                       stroke-dasharray="4 2"
                       style="pointer-events: none;"
-                    />
-                    <line
+                  />
+                  <line
                       :x1="door.x" :y1="door.y + door.height"
                       :x2="door.x" :y2="door.y + door.height - door.width / 2"
                       stroke="#333"
                       stroke-width="2"
                       style="pointer-events: none;"
-                    />
-                    <!-- Côté droit -->
-                    <path
+                  />
+                  <!-- Côté droit -->
+                  <path
                       :d="`M ${door.x + door.width / 2} ${door.y + door.height} A ${door.width / 2} ${door.width / 2} 0 0 1 ${door.x + door.width} ${door.y + door.height - door.width / 2}`"
                       fill="none"
                       stroke="#333"
                       stroke-width="2"
                       stroke-dasharray="4 2"
                       style="pointer-events: none;"
-                    />
-                    <line
+                  />
+                  <line
                       :x1="door.x + door.width" :y1="door.y + door.height"
                       :x2="door.x + door.width" :y2="door.y + door.height - door.width / 2"
                       stroke="#333"
                       stroke-width="2"
                       style="pointer-events: none;"
-                    />
-                  </template>
-                  <template v-else>
-                    <path
+                  />
+                </template>
+                <template v-else>
+                  <path
                       :d="`M ${door.x + door.width} ${door.y + door.height} A ${door.width} ${door.width} 0 0 0 ${door.x} ${door.y + door.height - door.width}`"
                       fill="none"
                       stroke="#333"
                       stroke-width="2"
                       stroke-dasharray="4 2"
                       style="pointer-events: none;"
-                    />
-                    <line
+                  />
+                  <line
                       :x1="door.x" :y1="door.y + door.height"
                       :x2="door.x" :y2="door.y + door.height - door.width"
                       stroke="#333"
                       stroke-width="2"
                       style="pointer-events: none;"
-                    />
-                  </template>
-                </g>
+                  />
+                </template>
               </g>
+            </g>
 
             <g v-for="(table, tIdx) in _tables" :key="tIdx">
               <g :transform="`rotate(${table.rotation || 0}, ${table.x + table.width / 2}, ${table.y + table.height / 2})`">
@@ -612,7 +613,7 @@ onUnmounted(() => {
                     :x="table.x" :y="table.y"
                     :width="table.width" :height="table.height"
                     class="table-rect"
-                    :class="{ 
+                    :class="{
                       selected: selectedTableIndex === tIdx && !selectedChairIndex,
                       invalid: draggingTable === tIdx && !isTableInValidArea(table)
                     }"
@@ -623,7 +624,7 @@ onUnmounted(() => {
                     :cx="table.x + table.width/2" :cy="table.y + table.height/2"
                     :rx="table.width/2" :ry="table.height/2"
                     class="table-rect"
-                    :class="{ 
+                    :class="{
                       selected: selectedTableIndex === tIdx && !selectedChairIndex,
                       invalid: draggingTable === tIdx && !isTableInValidArea(table)
                     }"
@@ -633,7 +634,7 @@ onUnmounted(() => {
                     v-else-if="table.shape === 'L'"
                     :d="`M ${table.x} ${table.y} H ${table.x + table.width} V ${table.y + (table.extraAttributes?.lThicknessY || table.height * 0.4)} H ${table.x + (table.extraAttributes?.lThicknessX || table.width * 0.4)} V ${table.y + table.height} H ${table.x} Z`"
                     class="table-rect"
-                    :class="{ 
+                    :class="{
                       selected: selectedTableIndex === tIdx && !selectedChairIndex,
                       invalid: draggingTable === tIdx && !isTableInValidArea(table)
                     }"
@@ -652,7 +653,7 @@ onUnmounted(() => {
                     H ${table.x}
                     Z`"
                     class="table-rect"
-                    :class="{ 
+                    :class="{
                       selected: selectedTableIndex === tIdx && !selectedChairIndex,
                       invalid: draggingTable === tIdx && !isTableInValidArea(table)
                     }"
@@ -721,97 +722,83 @@ onUnmounted(() => {
       </svg>
 
       <Teleport to="body">
-        <div v-if="showDeleteWallModal" class="modal-overlay" @click="showDeleteWallModal = false">
-          <div class="modal-content" @click.stop>
-            <h3>Confirmer la suppression</h3>
-            <p>Voulez-vous vraiment supprimer les murs de cette pièce ? Cette action est irréversible.</p>
-            <div class="modal-actions">
-              <button class="btn btn-secondary" @click="showDeleteWallModal = false">Annuler</button>
-              <button class="btn btn-danger" @click="performResetWalls">Supprimer</button>
-            </div>
-          </div>
-        </div>
+        <Modal v-model="showDeleteWallModal">
+          <h3>Confirmer la suppression</h3>
+          <p>Voulez-vous vraiment supprimer les murs de cette pièce ? Cette action est irréversible.</p>
+          <template #footer>
+            <button class="btn btn-secondary" @click="showDeleteWallModal = false">Annuler</button>
+            <button class="btn btn-danger" @click="performResetWalls">Supprimer</button>
+          </template>
+        </Modal>
 
-        <!-- Modal pour nommer la zone -->
-        <div v-if="showZoneNamingModal" class="modal-overlay" @click="showZoneNamingModal = false">
-          <div class="modal-content" @click.stop>
-            <h3>Nommer la {{ selectedZoneType === 'zone' ? 'zone' : (selectedZoneType === 'estrade' ? 'estrade' : 'terrasse') }}</h3>
-            <div style="margin: 1rem 0;">
-              <input 
-                v-model="newZoneName" 
-                class="form-control" 
+        <Modal v-model="showZoneNamingModal">
+          <h3>Nommer la {{ selectedZoneType === 'zone' ? 'zone' : (selectedZoneType === 'estrade' ? 'estrade' : 'terrasse') }}</h3>
+          <div style="margin: 1rem 0;">
+            <input
+                v-model="newZoneName"
+                class="form-control"
                 placeholder="Nom de la zone"
                 @keyup.enter="confirmCreateZone"
                 ref="zoneNameInput"
                 style="width: 100%; padding: 0.5rem; border: 1px solid #cbd5e1; border-radius: 6px;"
-              />
+            />
+          </div>
+          <template #footer>
+            <button class="btn btn-secondary" @click="showZoneNamingModal = false">Annuler</button>
+            <button class="btn btn-primary" @click="confirmCreateZone">Valider</button>
+          </template>
+        </Modal>
+
+        <Modal v-model="showShortcutsModal" content-class="shortcuts-modal">
+          <template #header>
+            <h3>Raccourcis clavier</h3>
+            <button class="btn-close" @click="closeShortcutsModal">&times;</button>
+          </template>
+          <div class="shortcuts-grid">
+            <div class="shortcut-item">
+              <span class="key">Ctrl</span> + <span class="key">C</span>
+              <span class="desc">Copier l'élément sélectionné</span>
             </div>
-            <div class="modal-actions">
-              <button class="btn btn-secondary" @click="showZoneNamingModal = false">Annuler</button>
-              <button class="btn btn-primary" @click="confirmCreateZone">Valider</button>
+            <div class="shortcut-item">
+              <span class="key">Ctrl</span> + <span class="key">V</span>
+              <span class="desc">Coller l'élément</span>
+            </div>
+            <div class="shortcut-item">
+              <span class="key">Ctrl</span> + <span class="key">D</span>
+              <span class="desc">Dupliquer l'élément sélectionné</span>
+            </div>
+            <div class="shortcut-item">
+              <span class="key">Ctrl</span> + <span class="key">Z</span>
+              <span class="desc">Annuler</span>
+            </div>
+            <div class="shortcut-item">
+              <span class="key">Ctrl</span> + <span class="key">Y</span> / <span class="key">Maj</span> + <span class="key">Z</span>
+              <span class="desc">Rétablir</span>
+            </div>
+            <div class="shortcut-item">
+              <span class="key">Ctrl</span> + <span class="key">S</span>
+              <span class="desc">Sauvegarder</span>
+            </div>
+            <div class="shortcut-item">
+              <span class="key">Suppr</span> / <span class="key">Retour</span>
+              <span class="desc">Supprimer l'élément sélectionné</span>
+            </div>
+            <div class="shortcut-item">
+              <span class="key">Ctrl</span> + <span class="key">Drag</span>
+              <span class="desc">Aimantation (Alignement auto)</span>
             </div>
           </div>
-        </div>
+          <template #footer>
+            <button class="btn btn-primary" @click="closeShortcutsModal">Fermer</button>
+          </template>
+        </Modal>
 
-        <!-- Menu contextuel personnalisé -->
-        <div 
-          v-if="showContextMenu" 
-          class="custom-context-menu" 
-          :style="{ top: contextMenuPos.y + 'px', left: contextMenuPos.x + 'px' }"
-          @click.stop
-        >
+        <ContextMenu v-model="showContextMenu" :position="contextMenuPos">
           <button @click="validateZone">
-            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 8px;"><path d="M12 5v14M5 12h14"/></svg>
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
             Créer la zone
           </button>
-        </div>
-
-        <!-- Modal pour les raccourcis clavier -->
-        <div v-if="showShortcutsModal" class="modal-overlay" @click="showShortcutsModal = false">
-          <div class="modal-content shortcuts-modal" @click.stop>
-            <div class="modal-header">
-              <h3>Raccourcis clavier</h3>
-              <button class="btn-close" @click="showShortcutsModal = false">&times;</button>
-            </div>
-            <div class="shortcuts-grid">
-              <div class="shortcut-item">
-                <span class="key">Ctrl</span> + <span class="key">C</span>
-                <span class="desc">Copier l'élément sélectionné</span>
-              </div>
-              <div class="shortcut-item">
-                <span class="key">Ctrl</span> + <span class="key">V</span>
-                <span class="desc">Coller l'élément</span>
-              </div>
-              <div class="shortcut-item">
-                <span class="key">Ctrl</span> + <span class="key">D</span>
-                <span class="desc">Dupliquer l'élément sélectionné</span>
-              </div>
-              <div class="shortcut-item">
-                <span class="key">Ctrl</span> + <span class="key">Z</span>
-                <span class="desc">Annuler</span>
-              </div>
-              <div class="shortcut-item">
-                <span class="key">Ctrl</span> + <span class="key">Y</span> / <span class="key">Maj</span> + <span class="key">Z</span>
-                <span class="desc">Rétablir</span>
-              </div>
-              <div class="shortcut-item">
-                <span class="key">Ctrl</span> + <span class="key">S</span>
-                <span class="desc">Sauvegarder</span>
-              </div>
-              <div class="shortcut-item">
-                <span class="key">Suppr</span> / <span class="key">Retour</span>
-                <span class="desc">Supprimer l'élément sélectionné</span>
-              </div>
-              <div class="shortcut-item">
-                <span class="key">Ctrl</span> + <span class="key">Drag</span>
-                <span class="desc">Aimantation (Alignement auto)</span>
-              </div>
-            </div>
-            <div class="modal-actions">
-              <button class="btn btn-primary" @click="showShortcutsModal = false">Fermer</button>
-            </div>
-          </div>
-        </div>
+        </ContextMenu>
       </Teleport>
 
       <div v-if="selectedTableIndex !== null || selectedDoorIndex !== null" class="properties-panel">
@@ -870,21 +857,21 @@ onUnmounted(() => {
           </div>
         </div>
 
-          <div v-else-if="selectedDoorIndex !== null">
-            <div class="panel-header">
-              <h3>Porte {{ doors_[selectedDoorIndex]!.type === 'double' ? 'double' : 'simple' }}</h3>
-            </div>
-
-            <div class="form-group">
-              <label>Largeur (cm)</label>
-              <input type="number" v-model.number="doors_[selectedDoorIndex]!.width" step="5" @input="alignDoorToWall(selectedDoorIndex)" />
-            </div>
-
-            <div class="actions">
-              <button @click="flipDoor(selectedDoorIndex)" class="btn btn-primary" title="Faire pivoter la porte de 180°">Pivoter 180°</button>
-              <button @click="removeDoor(selectedDoorIndex)" class="btn btn-danger">Supprimer la porte</button>
-            </div>
+        <div v-else-if="selectedDoorIndex !== null">
+          <div class="panel-header">
+            <h3>Porte {{ doors_[selectedDoorIndex]!.type === 'double' ? 'double' : 'simple' }}</h3>
           </div>
+
+          <div class="form-group">
+            <label>Largeur (cm)</label>
+            <input type="number" v-model.number="doors_[selectedDoorIndex]!.width" step="5" @input="alignDoorToWall(selectedDoorIndex)" />
+          </div>
+
+          <div class="actions">
+            <button @click="flipDoor(selectedDoorIndex)" class="btn btn-primary" title="Faire pivoter la porte de 180°">Pivoter 180°</button>
+            <button @click="removeDoor(selectedDoorIndex)" class="btn btn-danger">Supprimer la porte</button>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -897,41 +884,6 @@ onUnmounted(() => {
 </style>
 
 <style scoped>
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 1000;
-}
-
-.modal-content {
-  background: white;
-  padding: 2rem;
-  border-radius: 12px;
-  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
-  max-width: 400px;
-  width: 90%;
-}
-
-.modal-content h3 {
-  margin-top: 0;
-  margin-bottom: 1rem;
-  color: #1e293b;
-}
-
-.modal-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 1rem;
-  margin-top: 1.5rem;
-}
-
 .inactive-layer {
   opacity: 0.3;
   transition: opacity 0.3s ease;
@@ -1272,37 +1224,6 @@ onUnmounted(() => {
   stroke: rgba(0, 123, 255, 0.3);
 }
 
-/* Context Menu */
-.custom-context-menu {
-  position: fixed;
-  background: white;
-  border: 1px solid #cbd5e1;
-  border-radius: 8px;
-  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-  z-index: 1000;
-  padding: 4px;
-  min-width: 160px;
-}
-
-.custom-context-menu button {
-  width: 100%;
-  text-align: left;
-  padding: 8px 12px;
-  background: none;
-  border: none;
-  border-radius: 6px;
-  font-size: 0.9rem;
-  font-weight: 500;
-  color: #1e293b;
-  display: flex;
-  align-items: center;
-  cursor: pointer;
-  transition: background-color 0.2s;
-}
-
-.custom-context-menu button:hover {
-  background-color: #f1f5f9;
-}
 .chair-rect {
   fill: #555;
   stroke: #333;
@@ -1349,21 +1270,6 @@ onUnmounted(() => {
 .btn-info:hover {
   background-color: #f1f5f9;
   color: #0f172a;
-}
-.shortcuts-modal {
-  max-width: 500px !important;
-}
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1.5rem;
-  border-bottom: 1px solid #e2e8f0;
-  padding-bottom: 0.75rem;
-}
-.modal-header h3 {
-  margin: 0;
-  color: #1e293b;
 }
 .btn-close {
   background: none;

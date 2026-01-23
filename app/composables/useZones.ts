@@ -1,5 +1,6 @@
 import type { Ref } from 'vue';
 import type { RoomLayer, RoomZone, ZoneType } from '~/types/room';
+import { useContextMenu } from '~/composables/useContextMenu';
 
 interface UseZonesOptions {
   gridSize: number;
@@ -28,8 +29,7 @@ export const useZones = ({
   const showZoneNamingModal = ref(false);
   const newZoneName = ref('');
   const zoneNameInput = ref<HTMLInputElement | null>(null);
-  const showContextMenu = ref(false);
-  const contextMenuPos = ref({ x: 0, y: 0 });
+  const { isOpen: showContextMenu, position: contextMenuPos, open: openContextMenu, close: closeContextMenu } = useContextMenu();
 
   watch(showZoneNamingModal, (val) => {
     if (val) {
@@ -69,7 +69,7 @@ export const useZones = ({
   };
 
   const validateZone = () => {
-    showContextMenu.value = false;
+    closeContextMenu();
     if (currentZoneUnits.value.size > 0) {
       newZoneName.value = '';
       showZoneNamingModal.value = true;
@@ -85,16 +85,14 @@ export const useZones = ({
       });
       currentZoneUnits.value.clear();
       showZoneNamingModal.value = false;
-      showContextMenu.value = false;
+      closeContextMenu();
       save();
     }
   };
 
   const handleContextMenu = (event: MouseEvent) => {
     if (activeLayerType.value === 'zones' && currentZoneUnits.value.size > 0) {
-      event.preventDefault();
-      contextMenuPos.value = { x: event.clientX, y: event.clientY };
-      showContextMenu.value = true;
+      openContextMenu(event);
     }
   };
 
@@ -230,6 +228,7 @@ export const useZones = ({
     validateZone,
     confirmCreateZone,
     handleContextMenu,
+    closeContextMenu,
     deleteZone,
     getZoneCenter,
     handleZoneMouseMove,
