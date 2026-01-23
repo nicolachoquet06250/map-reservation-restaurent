@@ -1,12 +1,29 @@
-import { reservations, chairs, tables, rooms } from '~~/server/database/schema'
-import { eq } from 'drizzle-orm'
+import { reservations, chairs, tables, rooms, locations, restaurants } from '~~/server/database/schema'
+import { eq, and } from 'drizzle-orm'
+import { verifyJwt } from '~~/server/utils/auth'
 
 export default defineEventHandler(async (event) => {
   const db = useDb()
+  const config = useRuntimeConfig()
   const query = getQuery(event)
   const roomId = query.roomId ? Number(query.roomId) : null
 
-  // On récupère toutes les réservations, jointes avec les chaises, tables et salles
+  // 1. Authentification
+  const authHeader = getHeader(event, 'Authorization')
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    throw createError({ statusCode: 401, statusMessage: 'Non authentifié.' })
+  }
+
+  const token = authHeader.split(' ')[1]
+  const payload = verifyJwt(token, config.authSecret)
+  if (!payload) {
+    throw createError({ statusCode: 401, statusMessage: 'Session invalide ou expirée.' })
+  }
+
+  const restaurateurId = Number(payload.sub)
+
+  // On récupère les réservations, jointes avec les chaises, tables, salles, localisations et restaurants
+  // pour filtrer par restaurateur
   const res = await db.select({
     reservationId: reservations.id,
     customerName: reservations.customerName,
@@ -22,7 +39,12 @@ export default defineEventHandler(async (event) => {
   .innerJoin(chairs, eq(reservations.chairId, chairs.id))
   .innerJoin(tables, eq(chairs.tableId, tables.id))
   .innerJoin(rooms, eq(tables.roomId, rooms.id))
-  .where(roomId ? eq(rooms.id, roomId) : undefined)
+  .innerJoin(locations, eq(rooms.locationId, locations.id))
+  .innerJoin(restaurants, eq(locations.restaurantId, restaurants.id))
+  .where(and(
+    eq(restaurants.restaurateurId, restaurateurId),
+    roomId ? eq(rooms.id, roomId) : undefined
+  ))
   .orderBy(reservations.reservationDate)
 
   // On groupe par client pour avoir une liste plus lisible

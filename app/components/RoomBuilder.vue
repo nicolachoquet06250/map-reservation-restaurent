@@ -45,9 +45,9 @@ const { getPlatformDefaultName } = usePlateform(roomZonesData);
 const {
   roomName, roomSlug, undoStack,
   redoStack, wallPoints, wallStartPoint,
-  wallClosed, wallSelected,
+  wallPreviewPoint, wallClosed, wallSelected,
   showDeleteWallModal, draggingWallSegment,
-  wallSegments, doors, draggingDoor, rotatingDoor,
+  wallSegments, wallPolylinePoints, doors, draggingDoor, rotatingDoor,
   selectedDoorIndex,
   takeSnapshot, undo, redo,
   selectWall, resetWalls,
@@ -173,7 +173,9 @@ const deselect = (event: MouseEvent) => {
     selectedChairIndex.value = null;
     selectedDoorIndex.value = null;
     wallSelected.value = false;
-    isPanning.value = true;
+    if (wallClosed.value) {
+      isPanning.value = true;
+    }
   }
 };
 
@@ -409,6 +411,8 @@ onUnmounted(() => {
         >
           <Walls
               :closed="wallClosed" :selected="wallSelected" :points="wallPoints"
+              :polyline-points="wallPolylinePoints"
+              :preview-point="wallPreviewPoint"
               :segments="wallSegments"
               @select="selectWall" @click="handleWallClick" @start-drag="startDragWallSegment"
           />

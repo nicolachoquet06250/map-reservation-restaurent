@@ -13,6 +13,7 @@ export default defineEventHandler(async (event) => {
     const name = body.roomName || 'Nouvelle salle'
     const [newRoom] = await db.insert(rooms).values({
       name,
+      locationId: body.locationId ? Number(body.locationId) : null,
       slug: slugify(name),
       points: body.points || null
     })

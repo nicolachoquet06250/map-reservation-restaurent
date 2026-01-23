@@ -3,8 +3,14 @@ const props = defineProps<{
   roomId?: number;
 }>();
 
+const token = useCookie('auth_token').value;
 const { data: reservations, refresh } = await useFetch(() => 
-  props.roomId ? `/api/reservations?roomId=${props.roomId}` : '/api/reservations'
+  props.roomId ? `/api/reservations?roomId=${props.roomId}` : '/api/reservations',
+  {
+    headers: {
+      Authorization: `Bearer ${token}`
+    }
+  }
 );
 
 defineExpose({ refresh });

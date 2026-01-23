@@ -4,16 +4,97 @@ definePageMeta({
 });
 
 const currentStep = ref<1 | 2>(1);
+const isStep1Completed = ref(false);
 const isSubmitting = ref(false);
 
+const formData = ref({
+  name: '',
+  email: '',
+  password: '',
+  confirmPassword: '',
+  restaurantName: '',
+  location: '',
+  establishmentsCount: 1
+});
+
 const goToStep = (step: 1 | 2) => {
+  if (step === 2 && !isStep1Completed.value) return;
   currentStep.value = step;
+};
+
+const completeStep1 = () => {
+  if (formData.value.password !== formData.value.confirmPassword) {
+    alert('Les mots de passe ne correspondent pas.');
+    return;
+  }
+  isStep1Completed.value = true;
+  currentStep.value = 2;
+};
+
+const handleRegister = async () => {
+  isSubmitting.value = true;
+  const Notify = (await import('simple-notify')).default;
+
+  try {
+    const response = await $fetch<{
+      token: string,
+      tokenType: 'Bearer',
+      expiresAt: string,
+      user: {
+        id: number,
+        email: string,
+        name: string,
+      },
+    }>('/api/register', {
+      method: 'POST',
+      body: {
+        name: formData.value.name,
+        email: formData.value.email,
+        password: formData.value.password,
+        restaurantName: formData.value.restaurantName,
+        locationName: formData.value.location,
+      }
+    });
+
+    // Stockage du token
+    const tokenCookie = useCookie('auth_token', {
+      maxAge: 60 * 60 * 24,
+      path: '/'
+    });
+    tokenCookie.value = response.token;
+
+    // @ts-ignore
+    new Notify({
+      status: 'success',
+      title: 'Compte créé',
+      text: `Bienvenue, ${response.user.name}. Votre restaurant ${formData.value.restaurantName} est prêt.`,
+      autoclose: true,
+      autotimeout: 3000,
+      position: 'right top',
+    });
+
+    await navigateTo('/dashboard');
+  } catch (error: any) {
+    // @ts-ignore
+    new Notify({
+      status: 'error',
+      title: "Erreur d'inscription",
+      text: error.data?.statusMessage || "Une erreur est survenue lors de l'inscription.",
+      autoclose: true,
+      autotimeout: 4000,
+      position: 'right top',
+    });
+  } finally {
+    isSubmitting.value = false;
+  }
 };
 </script>
 
 <template>
-  <div class="auth-page">
-    <section class="auth-card">
+  <div class="auth-wrapper">
+    <LandingHeader />
+    <div class="auth-page">
+      <section class="auth-card">
       <header>
         <p class="eyebrow">Démarrage SaaS</p>
         <h1>Créez votre compte restaurateur.</h1>
@@ -27,34 +108,34 @@ const goToStep = (step: 1 | 2) => {
         <button type="button" class="step" :class="{ active: currentStep === 1 }" @click="goToStep(1)">
           <span>1</span>Compte restaurateur
         </button>
-        <button type="button" class="step" :class="{ active: currentStep === 2 }" @click="goToStep(2)">
+        <button type="button" class="step" :class="{ active: currentStep === 2, disabled: !isStep1Completed }" @click="goToStep(2)" :disabled="!isStep1Completed">
           <span>2</span>Restaurant
         </button>
       </div>
 
-      <form class="auth-form" @submit.prevent="isSubmitting = true">
+      <form class="auth-form" @submit.prevent="handleRegister">
         <div v-if="currentStep === 1" class="form-block">
           <label class="field">
             <span>Nom complet</span>
-            <input type="text" placeholder="Camille Martin" autocomplete="name" required />
+            <input v-model="formData.name" type="text" placeholder="Camille Martin" autocomplete="name" required />
           </label>
 
           <label class="field">
             <span>Email professionnel</span>
-            <input type="email" placeholder="vous@restaurant.fr" autocomplete="email" required />
+            <input v-model="formData.email" type="email" placeholder="vous@restaurant.fr" autocomplete="email" required />
           </label>
 
           <label class="field">
             <span>Mot de passe</span>
-            <input type="password" placeholder="••••••••" autocomplete="new-password" required />
+            <input v-model="formData.password" type="password" placeholder="••••••••" autocomplete="new-password" required />
           </label>
 
           <label class="field">
             <span>Confirmer le mot de passe</span>
-            <input type="password" placeholder="••••••••" autocomplete="new-password" required />
+            <input v-model="formData.confirmPassword" type="password" placeholder="••••••••" autocomplete="new-password" required />
           </label>
 
-          <button class="btn btn-primary" type="button" @click="goToStep(2)">
+          <button class="btn btn-primary" type="button" @click="completeStep1">
             Continuer
           </button>
         </div>
@@ -62,17 +143,17 @@ const goToStep = (step: 1 | 2) => {
         <div v-else class="form-block">
           <label class="field">
             <span>Nom du restaurant</span>
-            <input type="text" placeholder="Le Jardin Urbain" required />
+            <input v-model="formData.restaurantName" type="text" placeholder="Le Jardin Urbain" required />
           </label>
 
           <label class="field">
             <span>Localisation principale</span>
-            <input type="text" placeholder="Paris - Rue Oberkampf" required />
+            <input v-model="formData.location" type="text" placeholder="Paris - Rue Oberkampf" required />
           </label>
 
           <label class="field">
             <span>Nombre d'établissements (optionnel)</span>
-            <input type="number" min="1" placeholder="1" />
+            <input v-model="formData.establishmentsCount" type="number" min="1" placeholder="1" />
           </label>
 
           <div class="activation-box">
@@ -88,7 +169,7 @@ const goToStep = (step: 1 | 2) => {
               Retour
             </button>
             <button class="btn btn-primary" type="submit" :disabled="isSubmitting">
-              Valider et recevoir le lien d'activation
+              {{ isSubmitting ? 'Création en cours...' : "Valider et recevoir le lien d'activation" }}
             </button>
           </div>
         </div>
@@ -101,12 +182,20 @@ const goToStep = (step: 1 | 2) => {
         </p>
       </footer>
     </section>
+    </div>
   </div>
 </template>
 
 <style scoped>
+
+.auth-wrapper {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
 .auth-page {
-  min-height: calc(100vh - 56px);
+  flex-grow: 1;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -171,6 +260,11 @@ const goToStep = (step: 1 | 2) => {
   background: #2563eb;
   color: white;
   border-color: #1d4ed8;
+}
+
+.step.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .step.active span {

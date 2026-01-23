@@ -1,11 +1,13 @@
 <script setup lang="ts">
+import { computed } from 'vue';
 import type {Point} from "~/types/room";
 
-defineProps<{
+const props = defineProps<{
   closed: boolean,
   points: Point[],
   selected: boolean,
   polylinePoints?: string,
+  previewPoint?: Point | null,
   segments?: { p1?: Point, p2?: Point, isHorizontal: boolean }[],
 }>();
 
@@ -22,6 +24,15 @@ defineEmits<{
   (e: 'click', evt: MouseEvent): void,
   (e: 'start-drag', evt: MouseEvent, sgm: Segment): void,
 }>();
+
+const previewPolyline = computed(() => {
+  if (props.polylinePoints && props.polylinePoints.trim().length > 0) return props.polylinePoints;
+  if (props.closed) return '';
+  const points = [...props.points];
+  if (props.previewPoint) points.push(props.previewPoint);
+  if (points.length < 2) return '';
+  return points.map(p => `${p.x},${p.y}`).join(' ');
+});
 </script>
 
 <template>
@@ -35,8 +46,8 @@ defineEmits<{
       @click="$emit('click', $event)"
   />
   <polyline
-      v-else-if="polylinePoints"
-      :points="polylinePoints"
+      v-else-if="previewPolyline"
+      :points="previewPolyline"
       class="wall-shape wall-preview"
   />
 
