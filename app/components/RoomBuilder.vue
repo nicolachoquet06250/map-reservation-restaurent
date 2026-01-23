@@ -4,6 +4,7 @@ import 'simple-notify/dist/simple-notify.css'
 import type { RoomLayer, RoomZone, Table } from '~/types/room';
 import { useGrid } from '~/composables/useGrid';
 import { usePlateform } from '~/composables/usePlateform';
+import { useModal } from '~/composables/useModal';
 import { useRoom } from '~/composables/useRoom';
 import { useTables } from '~/composables/useTables';
 import { useZones } from '~/composables/useZones';
@@ -112,7 +113,7 @@ const {
 
 const _tables = tables;
 const doors_ = doors;
-const showShortcutsModal = ref(false);
+const { isOpen: showShortcutsModal, open: openShortcutsModal, close: closeShortcutsModal } = useModal();
 const showDoorDropdown = ref(false);
 
 const isInteracting = computed(() => isTableInteracting.value || isPanning.value);
@@ -401,7 +402,7 @@ onUnmounted(() => {
         </p>
 
         <div class="shortcuts-info" v-if="wallClosed">
-          <button class="btn btn-sm btn-ghost btn-info" @click="showShortcutsModal = true">
+          <button class="btn btn-sm btn-ghost btn-info" @click="openShortcutsModal">
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 6px;"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
             Raccourcis clavier
           </button>
@@ -720,40 +721,34 @@ onUnmounted(() => {
         </g>
       </svg>
 
+      <Modal v-model="showDeleteWallModal">
+        <h3>Confirmer la suppression</h3>
+        <p>Voulez-vous vraiment supprimer les murs de cette pièce ? Cette action est irréversible.</p>
+        <template #footer>
+          <button class="btn btn-secondary" @click="showDeleteWallModal = false">Annuler</button>
+          <button class="btn btn-danger" @click="performResetWalls">Supprimer</button>
+        </template>
+      </Modal>
+
+      <Modal v-model="showZoneNamingModal">
+        <h3>Nommer la {{ selectedZoneType === 'zone' ? 'zone' : (selectedZoneType === 'estrade' ? 'estrade' : 'terrasse') }}</h3>
+        <div style="margin: 1rem 0;">
+          <input 
+            v-model="newZoneName" 
+            class="form-control" 
+            placeholder="Nom de la zone"
+            @keyup.enter="confirmCreateZone"
+            ref="zoneNameInput"
+            style="width: 100%; padding: 0.5rem; border: 1px solid #cbd5e1; border-radius: 6px;"
+          />
+        </div>
+        <template #footer>
+          <button class="btn btn-secondary" @click="showZoneNamingModal = false">Annuler</button>
+          <button class="btn btn-primary" @click="confirmCreateZone">Valider</button>
+        </template>
+      </Modal>
+
       <Teleport to="body">
-        <div v-if="showDeleteWallModal" class="modal-overlay" @click="showDeleteWallModal = false">
-          <div class="modal-content" @click.stop>
-            <h3>Confirmer la suppression</h3>
-            <p>Voulez-vous vraiment supprimer les murs de cette pièce ? Cette action est irréversible.</p>
-            <div class="modal-actions">
-              <button class="btn btn-secondary" @click="showDeleteWallModal = false">Annuler</button>
-              <button class="btn btn-danger" @click="performResetWalls">Supprimer</button>
-            </div>
-          </div>
-        </div>
-
-        <!-- Modal pour nommer la zone -->
-        <div v-if="showZoneNamingModal" class="modal-overlay" @click="showZoneNamingModal = false">
-          <div class="modal-content" @click.stop>
-            <h3>Nommer la {{ selectedZoneType === 'zone' ? 'zone' : (selectedZoneType === 'estrade' ? 'estrade' : 'terrasse') }}</h3>
-            <div style="margin: 1rem 0;">
-              <input 
-                v-model="newZoneName" 
-                class="form-control" 
-                placeholder="Nom de la zone"
-                @keyup.enter="confirmCreateZone"
-                ref="zoneNameInput"
-                style="width: 100%; padding: 0.5rem; border: 1px solid #cbd5e1; border-radius: 6px;"
-              />
-            </div>
-            <div class="modal-actions">
-              <button class="btn btn-secondary" @click="showZoneNamingModal = false">Annuler</button>
-              <button class="btn btn-primary" @click="confirmCreateZone">Valider</button>
-            </div>
-          </div>
-        </div>
-
-        <!-- Menu contextuel personnalisé -->
         <div 
           v-if="showContextMenu" 
           class="custom-context-menu" 
@@ -765,54 +760,51 @@ onUnmounted(() => {
             Créer la zone
           </button>
         </div>
+      </Teleport>
 
-        <!-- Modal pour les raccourcis clavier -->
-        <div v-if="showShortcutsModal" class="modal-overlay" @click="showShortcutsModal = false">
-          <div class="modal-content shortcuts-modal" @click.stop>
-            <div class="modal-header">
-              <h3>Raccourcis clavier</h3>
-              <button class="btn-close" @click="showShortcutsModal = false">&times;</button>
-            </div>
-            <div class="shortcuts-grid">
-              <div class="shortcut-item">
-                <span class="key">Ctrl</span> + <span class="key">C</span>
-                <span class="desc">Copier l'élément sélectionné</span>
-              </div>
-              <div class="shortcut-item">
-                <span class="key">Ctrl</span> + <span class="key">V</span>
-                <span class="desc">Coller l'élément</span>
-              </div>
-              <div class="shortcut-item">
-                <span class="key">Ctrl</span> + <span class="key">D</span>
-                <span class="desc">Dupliquer l'élément sélectionné</span>
-              </div>
-              <div class="shortcut-item">
-                <span class="key">Ctrl</span> + <span class="key">Z</span>
-                <span class="desc">Annuler</span>
-              </div>
-              <div class="shortcut-item">
-                <span class="key">Ctrl</span> + <span class="key">Y</span> / <span class="key">Maj</span> + <span class="key">Z</span>
-                <span class="desc">Rétablir</span>
-              </div>
-              <div class="shortcut-item">
-                <span class="key">Ctrl</span> + <span class="key">S</span>
-                <span class="desc">Sauvegarder</span>
-              </div>
-              <div class="shortcut-item">
-                <span class="key">Suppr</span> / <span class="key">Retour</span>
-                <span class="desc">Supprimer l'élément sélectionné</span>
-              </div>
-              <div class="shortcut-item">
-                <span class="key">Ctrl</span> + <span class="key">Drag</span>
-                <span class="desc">Aimantation (Alignement auto)</span>
-              </div>
-            </div>
-            <div class="modal-actions">
-              <button class="btn btn-primary" @click="showShortcutsModal = false">Fermer</button>
-            </div>
+      <Modal v-model="showShortcutsModal" content-class="shortcuts-modal">
+        <template #header>
+          <h3>Raccourcis clavier</h3>
+          <button class="btn-close" @click="closeShortcutsModal">&times;</button>
+        </template>
+        <div class="shortcuts-grid">
+          <div class="shortcut-item">
+            <span class="key">Ctrl</span> + <span class="key">C</span>
+            <span class="desc">Copier l'élément sélectionné</span>
+          </div>
+          <div class="shortcut-item">
+            <span class="key">Ctrl</span> + <span class="key">V</span>
+            <span class="desc">Coller l'élément</span>
+          </div>
+          <div class="shortcut-item">
+            <span class="key">Ctrl</span> + <span class="key">D</span>
+            <span class="desc">Dupliquer l'élément sélectionné</span>
+          </div>
+          <div class="shortcut-item">
+            <span class="key">Ctrl</span> + <span class="key">Z</span>
+            <span class="desc">Annuler</span>
+          </div>
+          <div class="shortcut-item">
+            <span class="key">Ctrl</span> + <span class="key">Y</span> / <span class="key">Maj</span> + <span class="key">Z</span>
+            <span class="desc">Rétablir</span>
+          </div>
+          <div class="shortcut-item">
+            <span class="key">Ctrl</span> + <span class="key">S</span>
+            <span class="desc">Sauvegarder</span>
+          </div>
+          <div class="shortcut-item">
+            <span class="key">Suppr</span> / <span class="key">Retour</span>
+            <span class="desc">Supprimer l'élément sélectionné</span>
+          </div>
+          <div class="shortcut-item">
+            <span class="key">Ctrl</span> + <span class="key">Drag</span>
+            <span class="desc">Aimantation (Alignement auto)</span>
           </div>
         </div>
-      </Teleport>
+        <template #footer>
+          <button class="btn btn-primary" @click="closeShortcutsModal">Fermer</button>
+        </template>
+      </Modal>
 
       <div v-if="selectedTableIndex !== null || selectedDoorIndex !== null" class="properties-panel">
         <div v-if="selectedTableIndex !== null">
@@ -897,41 +889,6 @@ onUnmounted(() => {
 </style>
 
 <style scoped>
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 1000;
-}
-
-.modal-content {
-  background: white;
-  padding: 2rem;
-  border-radius: 12px;
-  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
-  max-width: 400px;
-  width: 90%;
-}
-
-.modal-content h3 {
-  margin-top: 0;
-  margin-bottom: 1rem;
-  color: #1e293b;
-}
-
-.modal-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 1rem;
-  margin-top: 1.5rem;
-}
-
 .inactive-layer {
   opacity: 0.3;
   transition: opacity 0.3s ease;
@@ -1349,21 +1306,6 @@ onUnmounted(() => {
 .btn-info:hover {
   background-color: #f1f5f9;
   color: #0f172a;
-}
-.shortcuts-modal {
-  max-width: 500px !important;
-}
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1.5rem;
-  border-bottom: 1px solid #e2e8f0;
-  padding-bottom: 0.75rem;
-}
-.modal-header h3 {
-  margin: 0;
-  color: #1e293b;
 }
 .btn-close {
   background: none;
