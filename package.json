@@ -12,6 +12,7 @@
     "db:migrate": "drizzle-kit migrate"
   },
   "dependencies": {
+    "@vueuse/core": "^14.1.0",
     "drizzle-orm": "^0.45.1",
     "mysql2": "^3.16.1",
     "nuxt": "^4.2.2",

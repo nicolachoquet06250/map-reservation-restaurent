@@ -8,6 +8,9 @@ import { useRoom } from '~/composables/useRoom';
 import { useTables } from '~/composables/useTables';
 import { useZones } from '~/composables/useZones';
 import { useZoom } from '~/composables/useZoom';
+import { useDropdown } from '~/composables/useDropdown';
+
+const dragOffset = { x: 0, y: 0 };
 
 const props = defineProps<{
   roomId: number;
@@ -25,12 +28,13 @@ const selectedTableIndex = ref<number | null>(null);
 const selectedChairIndex = ref<{ tableIndex: number; chairIndex: number } | null>(null);
 
 const { zoomLevel, panOffset, svgCanvas, isPanning, handlePan, onWheel, zoomIn, zoomOut } = useZoom();
-const { snapToGrid, alignToGridLine, getGridPointFromEvent, getGridCellFromEvent } = useGrid({
+const {
+  snapToGrid, alignToGridLine,
+  getGridPointFromEvent, getGridCellFromEvent
+} = useGrid({
   gridSize, zoomLevel,
   panOffset, svgCanvas
 });
-
-const dragOffset = { x: 0, y: 0 };
 
 const { getPlatformDefaultName } = usePlateform(roomZonesData);
 
@@ -82,13 +86,11 @@ const {
   roomLayers, activeLayerId,
   isPointInRoom, save,
   getDefaultZoneName: (type) => {
-    if (type === 'estrade') {
-      return getPlatformDefaultName();
+    switch (type) {
+      case "estrade": return getPlatformDefaultName();
+      case "terrasse": return 'Nouvelle terrasse';
+      default: return 'Nouvelle zone';
     }
-    if (type === 'terrasse') {
-      return 'Nouvelle terrasse';
-    }
-    return 'Nouvelle zone';
   }
 });
 
@@ -114,7 +116,7 @@ const {
 const _tables = tables;
 const doors_ = doors;
 const { isOpen: showShortcutsModal, open: openShortcutsModal, close: closeShortcutsModal } = useModal();
-const showDoorDropdown = ref(false);
+const { isOpen: showDoorDropdown, close: closeDoorDropdown } = useDropdown();
 
 const isInteracting = computed(() => isTableInteracting.value || isPanning.value);
 
@@ -136,9 +138,7 @@ const onMouseMove = (event: MouseEvent) => {
       rotatingChair.value === null &&
       draggingWallSegment.value === null &&
       !isPanning.value
-  ) {
-    updateWallPreview(event, getGridPointFromEvent, alignToGridLine);
-  }
+  ) updateWallPreview(event, getGridPointFromEvent, alignToGridLine);
 };
 
 const stopDrag = async (event: MouseEvent) => {
@@ -161,14 +161,10 @@ const deselect = (event: MouseEvent) => {
 
   if (isZoneMode || target.classList.contains('canvas-background') || target.classList.contains('wall-shape')) {
     if (isZoneMode) {
-      if (startZoneDrawing(event, getGridCellFromEvent)) {
-        return;
-      }
+      if (startZoneDrawing(event, getGridCellFromEvent)) return;
     }
 
-    if (event.ctrlKey && activeLayerType.value === 'tables') {
-      return;
-    }
+    if (event.ctrlKey && activeLayerType.value === 'tables') return;
 
     selectedTableIndex.value = null;
     selectedChairIndex.value = null;
@@ -179,34 +175,28 @@ const deselect = (event: MouseEvent) => {
 };
 
 const handleWallClick = (event: MouseEvent) => {
-  if (activeLayerType.value === 'zones' && event.ctrlKey) {
-    return;
-  }
+  if (activeLayerType.value === 'zones' && event.ctrlKey) return;
   handleWallClickCore(event, getGridPointFromEvent, alignToGridLine);
 };
 
 const handleKeyDown = (event: KeyboardEvent) => {
   const isCtrl = event.ctrlKey || event.metaKey;
 
-  if (isCtrl && event.key.toLowerCase() === 'z') {
-    event.preventDefault();
-    if (event.shiftKey) {
-      redo();
-    } else {
-      undo();
+  if (isCtrl) {
+    if (event.key.toLowerCase() === 'z') {
+      event.preventDefault();
+      event.shiftKey ? redo() : undo();
+      return;
     }
-    return;
-  }
-  if (isCtrl && event.key.toLowerCase() === 'y') {
-    event.preventDefault();
-    redo();
-    return;
+    if (event.key.toLowerCase() === 'y') {
+      event.preventDefault();
+      redo();
+      return;
+    }
   }
 
   if (event.key === 'Delete' || event.key === 'Backspace') {
-    if ((event.target as HTMLElement).tagName === 'INPUT' || (event.target as HTMLElement).tagName === 'SELECT') {
-      return;
-    }
+    if (['INPUT', 'SELECT'].includes((event.target as HTMLElement).tagName)) return;
 
     if (selectedChairIndex.value !== null) {
       event.preventDefault();
@@ -227,16 +217,17 @@ const handleKeyDown = (event: KeyboardEvent) => {
     }
   }
 
-  if (isCtrl && event.key.toLowerCase() === 's') {
-    event.preventDefault();
-    save();
-    return;
-  }
-
-  if (isCtrl && event.key.toLowerCase() === 'v') {
-    event.preventDefault();
-    pasteFromClipboard();
-    return;
+  if (isCtrl) {
+    if (event.key.toLowerCase() === 's') {
+      event.preventDefault();
+      save();
+      return;
+    }
+    if (event.key.toLowerCase() === 'v') {
+      event.preventDefault();
+      pasteFromClipboard();
+      return;
+    }
   }
 
   if (selectedChairIndex.value !== null) {
@@ -252,23 +243,20 @@ const handleKeyDown = (event: KeyboardEvent) => {
 
   if (selectedTableIndex.value === null) return;
 
-  if (isCtrl && event.key.toLowerCase() === 'd') {
-    event.preventDefault();
-    duplicateTable(selectedTableIndex.value);
-  } else if (isCtrl && event.key.toLowerCase() === 'c') {
-    event.preventDefault();
-    copyTable(selectedTableIndex.value);
+  if (isCtrl) {
+    if (event.key.toLowerCase() === 'd') {
+      event.preventDefault();
+      duplicateTable(selectedTableIndex.value);
+    } else if (event.key.toLowerCase() === 'c') {
+      event.preventDefault();
+      copyTable(selectedTableIndex.value);
+    }
   }
 };
 
 onMounted(async () => {
   await loadRoom();
   window.addEventListener('keydown', handleKeyDown);
-  window.addEventListener('click', (e) => {
-    if ((e.target as HTMLElement).getAttribute('data-action') !== 'add-door-dropdown') {
-      showDoorDropdown.value = false;
-    }
-  });
 });
 
 onUnmounted(() => {
@@ -333,17 +321,17 @@ onUnmounted(() => {
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px;"><rect x="4" y="4" width="16" height="16" rx="2"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
               Table
             </button>
-            <div class="door-dropdown-container">
-              <button class="btn btn-secondary btn-sm" @click="showDoorDropdown = !showDoorDropdown" data-action="add-door-dropdown" title="Ajouter une porte">
-                <svg data-action="add-door-dropdown" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px;"><path d="M3 3h18v18H3z"/><path d="M9 3v18"/><path d="M15 3v18"/><path d="M3 9h18"/><path d="M3 15h18"/></svg>
-                Porte
-                <svg data-action="add-door-dropdown" xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-left: 4px;"><polyline points="6 9 12 15 18 9"></polyline></svg>
-              </button>
-              <div v-if="showDoorDropdown" class="door-dropdown">
-                <button @click="addDoor('simple'); showDoorDropdown = false">Porte simple</button>
-                <button @click="addDoor('double'); showDoorDropdown = false">Porte double</button>
-              </div>
-            </div>
+            <Dropdown v-model="showDoorDropdown">
+              <template #trigger>
+                <button class="btn btn-secondary btn-sm" title="Ajouter une porte">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px;"><path d="M3 3h18v18H3z"/><path d="M9 3v18"/><path d="M15 3v18"/><path d="M3 9h18"/><path d="M3 15h18"/></svg>
+                  Porte
+                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-left: 4px;"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                </button>
+              </template>
+              <button @click="addDoor('simple'); closeDoorDropdown()">Porte simple</button>
+              <button @click="addDoor('double'); closeDoorDropdown()">Porte double</button>
+            </Dropdown>
           </div>
 
           <div v-if="activeLayerType === 'zones'" class="toolbar-group">
@@ -887,41 +875,6 @@ onUnmounted(() => {
 .inactive-layer {
   opacity: 0.3;
   transition: opacity 0.3s ease;
-}
-
-.door-dropdown-container {
-  position: relative;
-}
-.door-dropdown {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  background: white;
-  border: 1px solid #cbd5e1;
-  border-radius: 6px;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-  z-index: 100;
-  min-width: 140px;
-  margin-top: 4px;
-}
-.door-dropdown button {
-  width: 100%;
-  text-align: left;
-  padding: 8px 12px;
-  background: none;
-  border: none;
-  font-size: 0.85rem;
-  cursor: pointer;
-  transition: background-color 0.2s;
-}
-.door-dropdown button:hover {
-  background-color: #f1f5f9;
-}
-.door-dropdown button:first-child {
-  border-radius: 6px 6px 0 0;
-}
-.door-dropdown button:last-child {
-  border-radius: 0 0 6px 6px;
 }
 
 .builder-container {
