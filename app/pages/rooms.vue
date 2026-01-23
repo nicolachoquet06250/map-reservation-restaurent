@@ -1,7 +1,16 @@
 <script setup lang="ts">
 const token = useCookie('auth_token').value;
 
-const { data: rooms } = await useFetch('/api/rooms?all=true', {
+const { data: rooms } = await useFetch<{
+  id: number,
+  locationId: number | null,
+  locationName: string,
+  name: string,
+  slug: string,
+  restaurantName: string,
+  points: string | null,
+  createdAt: Date | null,
+}[]>('/api/rooms?all=true', {
   headers: {
     Authorization: `Bearer ${token}`
   }
@@ -56,7 +65,7 @@ const formatDate = (dateString: string) => {
                 </td>
                 <td>{{ room.locationName }}</td>
                 <td>{{ room.restaurantName }}</td>
-                <td>{{ formatDate(room.createdAt) }}</td>
+                <td>{{ formatDate(room.createdAt as unknown as string) }}</td>
                 <td class="actions-cell">
                   <NuxtLink :to="`/builder?id=${room.id}&locationId=${room.locationId}`" class="btn btn-sm btn-primary">
                     Ouvrir le plan

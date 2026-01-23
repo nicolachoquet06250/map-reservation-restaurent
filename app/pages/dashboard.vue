@@ -35,7 +35,7 @@ const selectedRestaurantId = ref<number | null>(null);
 
 const openCreateLocationModal = () => {
   if (allRestaurants.value && allRestaurants.value.length > 0) {
-    selectedRestaurantId.value = allRestaurants.value[0].id;
+    selectedRestaurantId.value = allRestaurants.value[0]!.id;
   }
   showCreateLocationModal.value = true;
 };

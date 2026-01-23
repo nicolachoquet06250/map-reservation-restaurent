@@ -30,7 +30,7 @@ const formatDate = (date: string) => {
           <h1>{{ restaurant.name }}</h1>
           <span class="badge">Restaurant ID: #{{ restaurant.id }}</span>
         </div>
-        <p class="subtitle">Créé le {{ formatDate(restaurant.createdAt) }}</p>
+        <p class="subtitle">Créé le {{ formatDate(restaurant.createdAt!) }}</p>
       </div>
     </header>
 
