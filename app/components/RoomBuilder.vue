@@ -9,6 +9,10 @@ import { useTables } from '~/composables/useTables';
 import { useZones } from '~/composables/useZones';
 import { useZoom } from '~/composables/useZoom';
 import { useDropdown } from '~/composables/useDropdown';
+import Grid from "~/components/Grid.vue";
+import Zones from "~/components/map/Zones.vue";
+import Walls from "~/components/map/Walls.vue";
+import Tables from "~/components/map/Tables.vue";
 
 const dragOffset = { x: 0, y: 0 };
 
@@ -43,8 +47,7 @@ const {
   redoStack, wallPoints, wallStartPoint,
   wallClosed, wallSelected,
   showDeleteWallModal, draggingWallSegment,
-  wallSegments, wallPolylinePoints,
-  doors, draggingDoor, rotatingDoor,
+  wallSegments, doors, draggingDoor, rotatingDoor,
   selectedDoorIndex,
   takeSnapshot, undo, redo,
   selectWall, resetWalls,
@@ -114,7 +117,7 @@ const {
 });
 
 const _tables = tables;
-const doors_ = doors;
+const _doors = doors;
 const { isOpen: showShortcutsModal, open: openShortcutsModal, close: closeShortcutsModal } = useModal();
 const { isOpen: showDoorDropdown, close: closeDoorDropdown } = useDropdown();
 
@@ -400,313 +403,47 @@ onUnmounted(() => {
 
     <div class="canvas-area">
       <svg ref="svgCanvas" width="100%" height="100%" class="canvas-svg" :class="{ interacting: isInteracting }" @mousedown="deselect">
-        <defs>
-          <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">
-            <path d="M 20 0 L 0 0 0 20" fill="none" stroke="#eee" stroke-width="1"/>
-          </pattern>
-          <mask id="wallMask">
-            <rect width="10000" height="10000" x="-5000" y="-5000" fill="white" />
-            <g v-for="(door, dIdx) in doors_" :key="`mask-door-${dIdx}`">
-              <rect
-                  :x="door.x" :y="door.y"
-                  :width="door.width" :height="door.height"
-                  fill="black"
-                  :transform="`rotate(${door.rotation || 0}, ${door.x + door.width / 2}, ${door.y + door.height / 2})`"
-              />
-            </g>
-          </mask>
-        </defs>
-        <rect width="100%" height="100%" fill="url(#grid)" class="canvas-background" :transform="`translate(${panOffset.x % 20}, ${panOffset.y % 20})`" @click="handleWallClick" @mouseup="stopDrag($event)" />
-
-        <g :transform="`scale(${zoomLevel}) translate(${panOffset.x}, ${panOffset.y})`">
-          <polygon
-              v-if="wallClosed && wallPoints.length"
-              :points="wallPoints.map(p => `${p.x},${p.y}`).join(' ')"
-              class="wall-shape"
-              :class="{ selected: wallSelected }"
-              mask="url(#wallMask)"
-              @mousedown="selectWall($event)"
-              @click="handleWallClick"
-          />
-          <polyline
-              v-else-if="wallPolylinePoints"
-              :points="wallPolylinePoints"
-              class="wall-shape wall-preview"
+        <Grid
+            :doors="_doors" :pan-offset="panOffset"
+            @click="handleWallClick" @mouseup="stopDrag($event)" :zoom-level="zoomLevel"
+        >
+          <Walls
+              :closed="wallClosed" :selected="wallSelected" :points="wallPoints"
+              :segments="wallSegments"
+              @select="selectWall" @click="handleWallClick" @start-drag="startDragWallSegment"
           />
 
-          <g :class="{ 'inactive-layer': activeLayerType !== 'zones' }" :style="activeLayerType !== 'zones' ? 'pointer-events: none;' : ''">
-            <!-- Zones et estrades enregistrées -->
-            <g v-for="(zone, zIdx) in roomZonesData" :key="`zone-${zIdx}`">
-              <rect
-                  v-for="unit in Array.from(zone.units)"
-                  :key="unit"
-                  :x="unit.split(',')[0]"
-                  :y="unit.split(',')[1]"
-                  :width="gridSize"
-                  :height="gridSize"
-                  :fill="zone.type === 'zone' ? '#800020' : (zone.type === 'estrade' ? '#808080' : '#4a90e2')"
-                  fill-opacity="0.6"
-                  stroke="white"
-                  stroke-width="0.5"
-                  @contextmenu.prevent="activeLayerType === 'zones' && deleteZone(zIdx)"
-              >
-                <title v-if="zone.name">{{ zone.name }}</title>
-              </rect>
-              <g v-if="zone.name" class="zone-label-group">
-                <rect
-                    :x="getZoneCenter(zone.units).x - (zone.name.length * 4 + 10)"
-                    :y="getZoneCenter(zone.units).y - 10"
-                    :width="zone.name.length * 8 + 20"
-                    :height="20"
-                    rx="10"
-                    class="zone-name-badge"
-                />
-                <text
-                    :x="getZoneCenter(zone.units).x"
-                    :y="getZoneCenter(zone.units).y"
-                    class="zone-name-label"
-                >
-                  {{ zone.name }}
-                </text>
-              </g>
-            </g>
+          <Zones
+              :is-active="activeLayerType === 'zones'"
+              :data="roomZonesData" :grid-size="gridSize"
+              :get-zone-center="getZoneCenter"
+              :current-zone-units="currentZoneUnits"
+              :selected-zone-type="selectedZoneType"
+              :is-drawing-zone="isDrawingZone"
+              :zone-drag-start="zoneDragStart"
+              :zone-drag-end="zoneDragEnd"
 
-            <!-- Sélection en cours -->
-            <g v-if="activeLayerType === 'zones'" @contextmenu="handleContextMenu">
-              <rect
-                  v-for="unit in Array.from(currentZoneUnits)"
-                  :key="`current-${unit}`"
-                  :x="unit.split(',')[0]"
-                  :y="unit.split(',')[1]"
-                  :width="gridSize"
-                  :height="gridSize"
-                  :fill="selectedZoneType === 'zone' ? '#800020' : (selectedZoneType === 'estrade' ? '#808080' : '#4a90e2')"
-                  fill-opacity="0.8"
-                  stroke="#fff"
-                  stroke-width="1"
-                  pointer-events="auto"
-              />
-            </g>
-
-            <!-- Aperçu du drag -->
-            <rect
-                v-if="activeLayerType === 'zones' && isDrawingZone && zoneDragStart && zoneDragEnd"
-                :x="Math.min(zoneDragStart.x, zoneDragEnd.x)"
-                :y="Math.min(zoneDragStart.y, zoneDragEnd.y)"
-                :width="Math.abs(zoneDragEnd.x - zoneDragStart.x) + gridSize"
-                :height="Math.abs(zoneDragEnd.y - zoneDragStart.y) + gridSize"
-                fill="rgba(0, 123, 255, 0.2)"
-                stroke="#007bff"
-                stroke-width="1"
-                stroke-dasharray="4"
-                pointer-events="none"
-            />
-          </g>
-
-          <!-- Segments de mur interactifs pour le déplacement -->
-          <template v-if="wallClosed && wallSelected">
-            <line
-                v-for="(segment, index) in wallSegments"
-                :key="`segment-${index}`"
-                :x1="segment.p1!.x"
-                :y1="segment.p1!.y"
-                :x2="segment.p2!.x"
-                :y2="segment.p2!.y"
-                class="wall-segment-handle"
-                :class="{ 'horizontal': segment.isHorizontal, 'vertical': !segment.isHorizontal }"
-                @mousedown.stop="startDragWallSegment($event, segment)"
-            />
-          </template>
-
-          <circle
-              v-if="!wallClosed"
-              v-for="(point, index) in wallPoints"
-              :key="`wall-point-${index}`"
-              :cx="point.x"
-              :cy="point.y"
-              r="3"
-              class="wall-point"
+              @delete-zone="deleteZone"
+              @context-menu="handleContextMenu"
           />
 
-          <g :class="{ 'inactive-layer': activeLayerType !== 'tables' }" :style="activeLayerType !== 'tables' ? 'pointer-events: none;' : ''">
-            <g v-for="(door, dIdx) in doors_" :key="`door-${dIdx}`">
-              <g :transform="`rotate(${door.rotation || 0}, ${door.x + door.width / 2}, ${door.y + door.height / 2})`">
-                <rect
-                    :x="door.x" :y="door.y"
-                    :width="door.width" :height="door.height"
-                    class="door-rect"
-                    :class="{ selected: selectedDoorIndex === dIdx }"
-                    @mousedown="activeLayerType === 'tables' && startDragDoor($event, dIdx)"
-                />
-                <!-- Représentation du sens d'ouverture -->
-                <template v-if="door.type === 'double'">
-                  <!-- Côté gauche -->
-                  <path
-                      :d="`M ${door.x + door.width / 2} ${door.y + door.height} A ${door.width / 2} ${door.width / 2} 0 0 0 ${door.x} ${door.y + door.height - door.width / 2}`"
-                      fill="none"
-                      stroke="#333"
-                      stroke-width="2"
-                      stroke-dasharray="4 2"
-                      style="pointer-events: none;"
-                  />
-                  <line
-                      :x1="door.x" :y1="door.y + door.height"
-                      :x2="door.x" :y2="door.y + door.height - door.width / 2"
-                      stroke="#333"
-                      stroke-width="2"
-                      style="pointer-events: none;"
-                  />
-                  <!-- Côté droit -->
-                  <path
-                      :d="`M ${door.x + door.width / 2} ${door.y + door.height} A ${door.width / 2} ${door.width / 2} 0 0 1 ${door.x + door.width} ${door.y + door.height - door.width / 2}`"
-                      fill="none"
-                      stroke="#333"
-                      stroke-width="2"
-                      stroke-dasharray="4 2"
-                      style="pointer-events: none;"
-                  />
-                  <line
-                      :x1="door.x + door.width" :y1="door.y + door.height"
-                      :x2="door.x + door.width" :y2="door.y + door.height - door.width / 2"
-                      stroke="#333"
-                      stroke-width="2"
-                      style="pointer-events: none;"
-                  />
-                </template>
-                <template v-else>
-                  <path
-                      :d="`M ${door.x + door.width} ${door.y + door.height} A ${door.width} ${door.width} 0 0 0 ${door.x} ${door.y + door.height - door.width}`"
-                      fill="none"
-                      stroke="#333"
-                      stroke-width="2"
-                      stroke-dasharray="4 2"
-                      style="pointer-events: none;"
-                  />
-                  <line
-                      :x1="door.x" :y1="door.y + door.height"
-                      :x2="door.x" :y2="door.y + door.height - door.width"
-                      stroke="#333"
-                      stroke-width="2"
-                      style="pointer-events: none;"
-                  />
-                </template>
-              </g>
-            </g>
+          <Tables
+              :is-active="activeLayerType === 'tables'"
+              :doors="_doors"
+              :tables="_tables"
+              :selected-door-index="selectedDoorIndex"
+              :selected-chair-index="selectedChairIndex"
+              :selected-table-index="selectedTableIndex"
+              :dragging-table="draggingTable"
+              :is-table-in-valid-area="isTableInValidArea"
 
-            <g v-for="(table, tIdx) in _tables" :key="tIdx">
-              <g :transform="`rotate(${table.rotation || 0}, ${table.x + table.width / 2}, ${table.y + table.height / 2})`">
-                <!-- Table -->
-                <rect
-                    v-if="table.shape === 'rectangle'"
-                    :x="table.x" :y="table.y"
-                    :width="table.width" :height="table.height"
-                    class="table-rect"
-                    :class="{
-                      selected: selectedTableIndex === tIdx && !selectedChairIndex,
-                      invalid: draggingTable === tIdx && !isTableInValidArea(table)
-                    }"
-                    @mousedown="activeLayerType === 'tables' && startDragTable($event, tIdx)"
-                />
-                <ellipse
-                    v-else-if="table.shape === 'circle'"
-                    :cx="table.x + table.width/2" :cy="table.y + table.height/2"
-                    :rx="table.width/2" :ry="table.height/2"
-                    class="table-rect"
-                    :class="{
-                      selected: selectedTableIndex === tIdx && !selectedChairIndex,
-                      invalid: draggingTable === tIdx && !isTableInValidArea(table)
-                    }"
-                    @mousedown="activeLayerType === 'tables' && startDragTable($event, tIdx)"
-                />
-                <path
-                    v-else-if="table.shape === 'L'"
-                    :d="`M ${table.x} ${table.y} H ${table.x + table.width} V ${table.y + (table.extraAttributes?.lThicknessY || table.height * 0.4)} H ${table.x + (table.extraAttributes?.lThicknessX || table.width * 0.4)} V ${table.y + table.height} H ${table.x} Z`"
-                    class="table-rect"
-                    :class="{
-                      selected: selectedTableIndex === tIdx && !selectedChairIndex,
-                      invalid: draggingTable === tIdx && !isTableInValidArea(table)
-                    }"
-                    @mousedown="activeLayerType === 'tables' && startDragTable($event, tIdx)"
-                />
-                <path
-                    v-else-if="table.shape === 'U'"
-                    :d="`
-                    M ${table.x} ${table.y}
-                    H ${table.x + (table.extraAttributes?.uThickness || table.width * 0.3)}
-                    V ${table.y + table.height - (table.extraAttributes?.uBaseThickness || table.height * 0.3)}
-                    H ${table.x + table.width - (table.extraAttributes?.uThickness || table.width * 0.3)}
-                    V ${table.y}
-                    H ${table.x + table.width}
-                    V ${table.y + table.height}
-                    H ${table.x}
-                    Z`"
-                    class="table-rect"
-                    :class="{
-                      selected: selectedTableIndex === tIdx && !selectedChairIndex,
-                      invalid: draggingTable === tIdx && !isTableInValidArea(table)
-                    }"
-                    @mousedown="activeLayerType === 'tables' && startDragTable($event, tIdx)"
-                />
-
-                <text
-                    :x="table.x + table.width / 2"
-                    :y="table.y + table.height / 2"
-                    text-anchor="middle"
-                    dominant-baseline="middle"
-                    class="table-label"
-                    :transform="`rotate(${- (table.rotation || 0)}, ${table.x + table.width / 2}, ${table.y + table.height / 2})`"
-                >
-                  {{ table.name }}
-                </text>
-
-                <!-- Poignées de rotation sur les coins (visibles seulement si sélectionnée) -->
-                <template v-if="activeLayerType === 'tables' && selectedTableIndex === tIdx && !selectedChairIndex">
-                  <circle
-                      v-for="(pos, pIdx) in [
-                      {x: table.x, y: table.y},
-                      {x: table.x + table.width, y: table.y},
-                      {x: table.x, y: table.y + table.height},
-                      {x: table.x + table.width, y: table.y + table.height}
-                    ]"
-                      :key="pIdx"
-                      :cx="pos.x" :cy="pos.y" r="6"
-                      class="rotation-handle"
-                      @mousedown="startRotateTable($event, tIdx)"
-                  />
-                </template>
-              </g>
-
-              <!-- Chaises (ne pas faire pivoter avec la table car leur position x,y est déjà absolue) -->
-              <g v-for="(chair, cIdx) in table.chairs" :key="cIdx">
-                <rect
-                    :x="chair.x" :y="chair.y"
-                    width="30" height="30" rx="5"
-                    class="chair-rect"
-                    :class="{ selected: selectedChairIndex?.tableIndex === tIdx && selectedChairIndex?.chairIndex === cIdx }"
-                    :transform="`rotate(${chair.rotation || 0}, ${chair.x + 15}, ${chair.y + 15})`"
-                    @mousedown="activeLayerType === 'tables' && startDragChair($event, tIdx, cIdx)"
-                />
-                <!-- Poignées de rotation sur les coins (visibles seulement si sélectionnée) -->
-                <template v-if="activeLayerType === 'tables' && selectedChairIndex?.tableIndex === tIdx && selectedChairIndex?.chairIndex === cIdx">
-                  <circle
-                      v-for="(pos, pIdx) in [
-                      {x: chair.x, y: chair.y},
-                      {x: chair.x + 30, y: chair.y},
-                      {x: chair.x, y: chair.y + 30},
-                      {x: chair.x + 30, y: chair.y + 30}
-                    ]"
-                      :key="pIdx"
-                      :cx="pos.x" :cy="pos.y" r="4"
-                      class="rotation-handle"
-                      :transform="`rotate(${chair.rotation || 0}, ${chair.x + 15}, ${chair.y + 15})`"
-                      @mousedown="startRotateChair($event, tIdx, cIdx)"
-                  />
-                </template>
-              </g>
-            </g>
-          </g>
-
-        </g>
+              @start-drag-door="startDragDoor"
+              @start-drag-chair="startDragChair"
+              @start-rotate-chair="startRotateChair"
+              @start-drag-table="startDragTable"
+              @start-rotate-table="startRotateTable"
+          />
+        </Grid>
       </svg>
 
       <Teleport to="body">
@@ -793,8 +530,8 @@ onUnmounted(() => {
         :selected-table-index="selectedTableIndex"
         :selected-chair-index="selectedChairIndex"
         :selected-door-index="selectedDoorIndex"
-        :tables="tables"
-        :doors="doors"
+        :tables="tables" :doors="doors"
+
         @update-table-shape="index => {
           if (!tables[index]!.extraAttributes) {
             tables[index]!.extraAttributes = {
@@ -826,11 +563,6 @@ onUnmounted(() => {
 </style>
 
 <style scoped>
-.inactive-layer {
-  opacity: 0.3;
-  transition: opacity 0.3s ease;
-}
-
 .builder-container {
   display: flex;
   flex-direction: column;
@@ -1035,107 +767,6 @@ onUnmounted(() => {
 }
 .canvas-svg.interacting {
   cursor: grabbing;
-}
-.table-rect {
-  fill: #d2b48c;
-  stroke: #8b4513;
-  stroke-width: 2;
-  cursor: move;
-}
-.table-rect.selected {
-  stroke: #3b82f6;
-  stroke-width: 3;
-}
-.table-rect.invalid {
-  fill: #fee2e2;
-  stroke: #ef4444;
-  stroke-width: 3;
-}
-.wall-shape {
-  fill: rgba(60, 60, 60, 0.15);
-  stroke: #2b2b2b;
-  stroke-width: 4;
-  stroke-linecap: square;
-  stroke-linejoin: miter;
-  cursor: pointer;
-  mask: url(#wallMask);
-}
-.wall-shape.selected {
-  stroke: #007bff;
-  fill: rgba(0, 123, 255, 0.1);
-}
-.wall-shape.wall-preview {
-  fill: none;
-  stroke-dasharray: 6 4;
-  pointer-events: none;
-}
-.wall-point {
-  fill: #ff4500;
-  stroke: #fff;
-  stroke-width: 1;
-}
-.wall-segment-handle {
-  stroke: transparent;
-  stroke-width: 10;
-  cursor: pointer;
-}
-.wall-segment-handle.horizontal {
-  cursor: ns-resize;
-}
-.wall-segment-handle.vertical {
-  cursor: ew-resize;
-}
-.zone-name-label {
-  fill: white;
-  font-size: 10px;
-  font-weight: bold;
-  text-anchor: middle;
-  dominant-baseline: middle;
-  pointer-events: none;
-  user-select: none;
-}
-.zone-label-group {
-  pointer-events: none;
-}
-.zone-name-badge {
-  fill: rgba(0, 0, 0, 0.5);
-  stroke: rgba(255, 255, 255, 0.3);
-  stroke-width: 1;
-}
-.wall-segment-handle:hover {
-  stroke: rgba(0, 123, 255, 0.3);
-}
-
-.chair-rect {
-  fill: #555;
-  stroke: #333;
-  cursor: move;
-}
-.chair-rect.selected {
-  stroke: #ff4500;
-  stroke-width: 3;
-}
-.door-rect {
-  fill: #fff;
-  stroke: #333;
-  stroke-width: 2;
-  cursor: move;
-}
-.door-rect.selected {
-  stroke: #ff4500;
-  stroke-width: 4;
-}
-.rotation-handle {
-  fill: white;
-  stroke: #ff4500;
-  stroke-width: 2;
-  cursor: alias;
-}
-.table-label {
-  pointer-events: none;
-  font-size: 12px;
-  font-weight: bold;
-  user-select: none;
 }
 .canvas-svg.interacting {
   user-select: none;

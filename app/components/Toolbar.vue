@@ -21,7 +21,6 @@
   justify-content: space-between;
   align-items: center;
   z-index: 20;
-  border-bottom: 1px solid #e2e8f0;
 }
 
 .toolbar-left, .toolbar-right {

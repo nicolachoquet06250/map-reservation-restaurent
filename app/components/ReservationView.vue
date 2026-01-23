@@ -472,12 +472,6 @@ const reserve = async () => {
 .canvas-svg:active {
   cursor: grabbing;
 }
-.canvas-background {
-  cursor: grab;
-}
-.canvas-background:active {
-  cursor: grabbing;
-}
 .table-rect {
   fill: #e3d5ca;
   stroke: #d5bdaf;
