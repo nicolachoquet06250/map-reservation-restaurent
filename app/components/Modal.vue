@@ -2,7 +2,6 @@
 import { onUnmounted, watch } from 'vue';
 
 const props = withDefaults(defineProps<{
-  // modelValue: boolean;
   closeOnOverlay?: boolean;
   closeOnEsc?: boolean;
   contentClass?: string;
@@ -14,12 +13,8 @@ const props = withDefaults(defineProps<{
 
 const modelValue = defineModel<boolean>();
 
-const emit = defineEmits<{
-  (e: 'update:modelValue', value: boolean): void;
-}>();
-
 const close = () => {
-  emit('update:modelValue', false);
+  modelValue.value = false;
 };
 
 const handleOverlayClick = () => {
@@ -37,7 +32,7 @@ const handleKeyDown = (event: KeyboardEvent) => {
 };
 
 watch(
-  () => props.modelValue,
+  modelValue,
   (isOpen) => {
     if (!props.closeOnEsc || !canUseWindow) return;
     if (isOpen) {

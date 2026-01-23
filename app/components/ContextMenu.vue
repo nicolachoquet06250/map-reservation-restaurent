@@ -1,13 +1,12 @@
 <script setup lang="ts">
 const props = defineProps<{
-  modelValue: boolean;
   position: { x: number; y: number };
 }>();
 
-const emit = defineEmits(['update:modelValue']);
+const modelValue = defineModel<boolean>();
 
 const close = () => {
-  emit('update:modelValue', false);
+  modelValue.value = false;
 };
 </script>
 

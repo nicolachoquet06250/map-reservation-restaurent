@@ -26,7 +26,18 @@ export default defineEventHandler(async (event) => {
   .orderBy(reservations.reservationDate)
 
   // On groupe par client pour avoir une liste plus lisible
-  const grouped = res.reduce((acc, curr) => {
+  const grouped = res.reduce<Record<string, {
+    customerName: string,
+    reservationDate: Date,
+    roomName: string,
+    tables: {
+      tableId: number,
+      tableName: string|null,
+      chairs: {
+        chairId: number
+      }[]
+    }[]
+  }>>((acc, curr) => {
     const key = `${curr.customerName}-${curr.reservationDate}`
     if (!acc[key]) {
       acc[key] = {

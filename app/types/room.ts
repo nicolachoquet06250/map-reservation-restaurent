@@ -51,3 +51,22 @@ export interface RoomLayer {
   name: string;
   type: string;
 }
+
+export interface Point {
+  x: number;
+  y: number;
+}
+
+export interface Room {
+  id: number;
+  name: string;
+  points: string;
+  slug: string;
+}
+
+export interface Zone {
+  id: number;
+  name: string;
+  type: ZoneType;
+  units: Set<string>;
+}
