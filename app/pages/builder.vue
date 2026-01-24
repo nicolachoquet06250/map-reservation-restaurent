@@ -33,7 +33,6 @@ const { data: rooms, refresh: refreshRooms } = await useFetch<Room[]>(
   }
 );
 
-console.log(rooms.value, route.query.locationId);
 const isMobile = useIsMobile();
 const selectedRoomId = ref<number | null>(route.query.id ? Number(route.query.id) : null);
 

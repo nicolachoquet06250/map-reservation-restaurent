@@ -1,29 +1,59 @@
 <script setup lang="ts">
 const props = defineProps<{
   roomId?: number;
+  selectedDate?: string;
 }>();
 
 const token = useCookie('auth_token').value;
-const { data: reservations, refresh } = await useFetch(() => 
-  props.roomId ? `/api/reservations?roomId=${props.roomId}` : '/api/reservations',
-  {
-    headers: {
-      Authorization: `Bearer ${token}`
-    }
+const { data: reservations, refresh } = await useFetch(() => {
+  const params = new URLSearchParams();
+  if (props.roomId) {
+    params.set('roomId', String(props.roomId));
   }
-);
+  if (props.selectedDate) {
+    params.set('date', props.selectedDate);
+  }
+  const query = params.toString();
+  return `/api/reservations${query ? `?${query}` : ''}`;
+}, {
+  headers: {
+    Authorization: `Bearer ${token}`
+  },
+  watch: [() => props.roomId, () => props.selectedDate]
+});
 
 defineExpose({ refresh });
 
 const formatDate = (dateString: string) => {
   return new Date(dateString).toLocaleString('fr-FR', {
     day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
+    month: 'long',
+    year: 'numeric'
+  });
+};
+
+const formatTime = (dateString: string) => {
+  return new Date(dateString).toLocaleTimeString('fr-FR', {
     hour: '2-digit',
     minute: '2-digit'
   });
 };
+
+const groupedReservations = computed(() => {
+  if (!reservations.value) return [];
+  const grouped = new Map<string, any[]>();
+  reservations.value.forEach((reservation: any) => {
+    const daySource = reservation.reservationDay || reservation.reservationDate;
+    const dayKey = new Date(daySource).toISOString().split('T')[0];
+    if (!grouped.has(dayKey!)) {
+      grouped.set(dayKey!, []);
+    }
+    grouped.get(dayKey!)!.push(reservation);
+  });
+  return Array.from(grouped.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, items]) => ({ date, items }));
+});
 </script>
 
 <template>
@@ -33,23 +63,31 @@ const formatDate = (dateString: string) => {
       Aucune réservation trouvée.
     </div>
     <div v-else class="list-container">
-      <div v-for="(res, index) in reservations" :key="index" class="reservation-card">
-        <div class="card-header">
-          <span class="customer-name">{{ res.customerName }}</span>
-          <span class="reservation-date">{{ formatDate(res.reservationDate) }}</span>
+      <section v-for="group in groupedReservations" :key="group.date" class="date-group">
+        <div class="date-header">
+          <span>{{ formatDate(group.date) }}</span>
+          <span class="date-count">{{ group.items.length }} réservations</span>
         </div>
-        <div class="card-body">
-          <div class="room-name">Salle : {{ res.roomName }}</div>
-          <div class="tables-list">
-            <strong>Tables réservées :</strong>
-            <ul>
-              <li v-for="table in res.tables" :key="table.tableId">
-                {{ table.tableName }} ({{ table.chairs.length }} chaises)
-              </li>
-            </ul>
+        <div class="date-cards">
+          <div v-for="(res, index) in group.items" :key="index" class="reservation-card">
+            <div class="card-header">
+              <span class="customer-name">{{ res.customerName }}</span>
+              <span class="reservation-date">{{ formatTime(res.reservationDay || res.reservationDate) }}</span>
+            </div>
+            <div class="card-body">
+              <div class="room-name">Salle : {{ res.roomName }}</div>
+              <div class="tables-list">
+                <strong>Tables réservées :</strong>
+                <ul>
+                  <li v-for="table in res.tables" :key="table.tableId">
+                    {{ table.tableName }} ({{ table.chairs.length }} chaises)
+                  </li>
+                </ul>
+              </div>
+            </div>
           </div>
         </div>
-      </div>
+      </section>
     </div>
   </div>
 </template>
@@ -77,6 +115,34 @@ h3 {
 }
 
 .list-container {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.date-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.date-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 0.75rem;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  font-weight: 600;
+}
+
+.date-count {
+  font-size: 0.85rem;
+  color: #6b7280;
+}
+
+.date-cards {
   display: flex;
   flex-direction: column;
   gap: 1rem;

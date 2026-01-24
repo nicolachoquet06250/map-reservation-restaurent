@@ -5,22 +5,24 @@ import { verifyJwt } from '~~/server/utils/auth'
 export default defineEventHandler(async (event) => {
   const db = useDb()
   const config = useRuntimeConfig()
+  const queryString = getQuery(event)
+  const locationId = Number(queryString.locationId)
 
   // Authentification pour filtrer par restaurateur
   const authHeader = getHeader(event, 'Authorization')
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return await db.select().from(rooms) // Fallback pour compatibilité si nécessaire
+    const q = db.select().from(rooms) // Fallback pour compatibilité si nécessaire
+    return locationId ? await q.where(eq(rooms.locationId, locationId)) : await q.execute();
   }
 
   const token = authHeader.split(' ')[1]
   const payload = verifyJwt(token, config.authSecret)
   if (!payload) {
-    return await db.select().from(rooms)
+    return db.select().from(rooms);
   }
 
   const restaurateurId = Number(payload.sub)
   const query = getQuery(event)
-  const locationId = query.locationId ? Number(query.locationId) : null
   const all = query.all === 'true'
 
   // Récupérer les salles des restaurants appartenant au restaurateur
@@ -33,7 +35,7 @@ export default defineEventHandler(async (event) => {
     conditions.push(eq(rooms.id, -1))
   }
 
-  const sql = db.select({
+  return db.select({
     id: rooms.id,
     name: rooms.name,
     locationId: rooms.locationId,
@@ -42,10 +44,8 @@ export default defineEventHandler(async (event) => {
     slug: rooms.slug,
     createdAt: rooms.createdAt
   })
-  .from(rooms)
-  .innerJoin(locations, eq(rooms.locationId, locations.id))
-  .innerJoin(restaurants, eq(locations.restaurantId, restaurants.id))
-  .where(and(...conditions))
-
-  return await sql
+      .from(rooms)
+      .innerJoin(locations, eq(rooms.locationId, locations.id))
+      .innerJoin(restaurants, eq(locations.restaurantId, restaurants.id))
+      .where(and(...conditions));
 })

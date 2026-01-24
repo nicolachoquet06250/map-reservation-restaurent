@@ -1,18 +1,24 @@
-import { rooms, tables, chairs, reservations, tableAttributes, layers, roomZones, doors } from '~~/server/database/schema'
-import {eq, sql} from 'drizzle-orm'
+import { rooms, chairs, reservations, tableAttributes, roomZones } from '~~/server/database/schema'
+import {and, eq, sql, type Table} from 'drizzle-orm'
+import type {Door, Room, RoomLayer, Zone} from "~/types/room";
 
 export default defineEventHandler(async (event) => {
   const db = useDb()
   const query = getQuery(event)
   const roomId = Number(query.id)
   const slug = query.slug as string
+  const locationId = Number(query.locationId)
+  const reservationDate = query.reservationDate;
 
-  if (!roomId && !slug) return { room: null, tables: [], layers: [], zones: [] }
+  if (!roomId && !slug) return {room: null, tables: [], layers: [], zones: []}
 
-  const whereClause = roomId ? eq(rooms.id, roomId) : eq(rooms.slug, slug)
+  let whereClause = roomId ? eq(rooms.id, roomId) : eq(rooms.slug, slug)
+  if (locationId) {
+      whereClause = and(whereClause,  eq(rooms.locationId, locationId)) as any
+  }
 
   const roomData = await db.query.rooms.findFirst({
-    where: whereClause,
+      where: whereClause,
   })
 
   if (!roomData) return { room: null, tables: [], layers: [], zones: [] }
@@ -41,36 +47,41 @@ export default defineEventHandler(async (event) => {
         'uThickness', ${tableAttributes.uThickness},
         'uBaseThickness', ${tableAttributes.uBaseThickness}
      )`,
-     chairs: sql`(SELECT JSON_ARRAYAGG(
-           JSON_OBJECT(
-               'id', chairs.id,
-               'table_id', chairs.table_id,
-               'x', chairs.x,
-               'y', chairs.y,
-               'relative_x', chairs.relative_x,
-               'relative_y', chairs.relative_y,
-               'rotation', chairs.rotation,
-               'isReserved', (SELECT COUNT(*) > 0 FROM ${reservations} WHERE ${reservations.chairId} = chairs.id)
-           )
-     )
-      FROM ${chairs}
-      WHERE ${chairs.tableId} = tables.id)`.as('chairs')
  })
      .from(tables)
      .leftJoin(tableAttributes, eq(tables.id, tableAttributes.tableId))
      .where(eq(tables.roomId, effectiveRoomId));
 
-  return {
-    room: roomData,
-    layers: roomLayers,
-    zones: roomZonesData,
-    doors: roomDoorsData,
-    tables: fullQueryTables.map(r => ({
-        ...r,
-        extraAttributes: typeof r.extraAttributes === 'string'
-            ? JSON.parse(r.extraAttributes)
-            : r.extraAttributes,
-        chairs: typeof r.chairs === 'string' ? JSON.parse(r.chairs) : (r.chairs || [])
-    }))
-  }
+  return Promise.all(fullQueryTables.map(async r => ({
+      ...r,
+      extraAttributes: typeof r.extraAttributes === 'string'
+          ? JSON.parse(r.extraAttributes)
+          : r.extraAttributes,
+      chairs: await db.select({
+          id: chairs.id,
+          tableId: chairs.tableId,
+          x: chairs.x,
+          y: chairs.y,
+          relativeX: chairs.relativeX,
+          relativeY: chairs.relativeY,
+          rotation: chairs.rotation,
+          isReserved: (reservationDate
+              ? sql`(SELECT COUNT(*) > 0 FROM ${reservations} WHERE ${reservations.chairId} = chairs.id AND ${reservations.reservationDate} >  DATE_SUB(${reservationDate}, INTERVAL 2 HOUR) AND ${reservations.reservationDate} <= ${reservationDate})`
+              : sql`(SELECT COUNT(*) > 0 FROM ${reservations} WHERE ${reservations.chairId} = chairs.id)`).as('is_reserved')
+      })
+          .from(chairs)
+          .where(eq(chairs.tableId, r.id)).execute()
+  }))).then(tables => ({
+      room: roomData,
+      layers: roomLayers,
+      zones: roomZonesData,
+      doors: roomDoorsData,
+      tables: tables
+  })) as Promise<{
+      room: Room,
+      layers: RoomLayer[],
+      zones: Zone[],
+      doors: Door[],
+      tables: Table[],
+  }>
 })

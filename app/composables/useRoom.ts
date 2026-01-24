@@ -36,6 +36,7 @@ export const useRoom = ({
 }: UseRoomOptions) => {
   const roomName = ref(initialRoomName);
   const roomSlug = ref<string | null>(null);
+  const locationId = ref<number | null>(null);
 
   const wallPoints = ref<Array<{ x: number; y: number }>>([]);
   const wallStartPoint = ref<{ x: number; y: number } | null>(null);
@@ -422,6 +423,7 @@ export const useRoom = ({
         room: {
           points: string | null;
           slug: string | null;
+          locationId: number | null;
         } | null;
         layers: RoomLayer[];
         zones: {
@@ -451,6 +453,7 @@ export const useRoom = ({
 
       if (data?.room) {
         roomSlug.value = data.room.slug || null;
+        locationId.value = data.room.locationId;
         if (data.room.points) {
           const points = data.room.points.split(' ').map(p => {
             const [x, y] = p.split(',').map(Number);
@@ -589,7 +592,7 @@ export const useRoom = ({
 
   const copyReservationLink = async () => {
     if (!roomSlug.value) return;
-    const url = `${window.location.origin}/reservation/${roomSlug.value}`;
+    const url = `${window.location.origin}/reservation/${roomSlug.value}?locationId=${locationId.value}`;
     await navigator.clipboard.writeText(url);
     const Notify = (await import('simple-notify')).default;
     // @ts-ignore

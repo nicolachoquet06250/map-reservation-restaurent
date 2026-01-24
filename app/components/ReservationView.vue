@@ -4,34 +4,26 @@ import type {Door, Room, Table, Zone} from "~/types/room";
 
 const props = defineProps<{
   roomId: number;
+  roomData: {
+    room: Room,
+    zones: Zone[],
+    doors: Door[],
+    tables: Table[]
+  };
+  reservationDate: Date;
 }>();
 
-const { data: roomData, refresh } = await useFetch<{
-  room: Room,
-  zones: Zone[],
-  doors: Door[],
-  tables: Table[]
-}>(() => `/api/room?id=${props.roomId}`, {
-  transform: (data) => {
-    return {
-      room: data.room,
-      zones: data.zones.map((z: any) => ({
-        ...z,
-        units: new Set(z.units.split(' '))
-      })),
-      doors: data.doors || [],
-      tables: data.tables.map((t: any) => ({
-        ...t,
-        extraAttributes: t.extraAttributes || {
-          lThicknessX: 40,
-          lThicknessY: 40,
-          uThickness: 30,
-          uBaseThickness: 30
-        }
-      }))
-    }
-  }
-});
+const roomData = computed(() => ({
+  ...props.roomData,
+  zones: props.roomData.zones.map(zone => ({
+    ...zone,
+    units: new Set((zone.units as unknown as string).split(' '))
+  })),
+}));
+
+const emit = defineEmits<{
+  (e: 'reserved'): void;
+}>();
 
 const gridSize = 20;
 const getZoneCenter = (units: Set<string>) => {
@@ -167,9 +159,11 @@ const reserve = async () => {
       method: 'POST',
       body: {
         customerName: customerName.value,
-        chairIds: selectedChairs.value
+        chairIds: selectedChairs.value,
+        reservationDate: props.reservationDate
       }
     });
+    emit('reserved')
     // @ts-ignore
     new Notify({
       status: 'success',
@@ -182,7 +176,6 @@ const reserve = async () => {
       customClass: 'custom-notify'
     });
     selectedChairs.value = [];
-    refresh();
   } catch (e) {
     console.error(e);
     // @ts-ignore
@@ -403,6 +396,8 @@ onMounted(() => {
               </template>
             </g>
           </g>
+
+          {{roomData?.tables}}
 
           <g v-for="table in roomData?.tables" :key="table.id">
             <g :transform="`rotate(${table.rotation || 0}, ${Number(table.x) + Number(table.width) / 2}, ${Number(table.y) + Number(table.height) / 2})`">

@@ -20,12 +20,29 @@ const { data: rooms } = await useFetch('/api/rooms?all=true', {
   }
 });
 
-const stats = [
-  { label: 'Réservations aujourd\'hui', value: '12', change: '+2', icon: '📅' },
-  { label: 'Couverts prévus', value: '45', change: '+5', icon: '🍽️' },
-  // { label: 'Note moyenne', value: '4.8', change: '+0.1', icon: '⭐' },
-  // { label: 'Chiffre d\'affaires (est.)', value: '1,240 €', change: '+15%', icon: '💰' },
-];
+const today = new Date();
+today.setHours(0, 0, 0, 0);
+const todayParam = today.toISOString().split('T')[0];
+
+const { data: todayReservations } = await useFetch(`/api/reservations?date=${todayParam}`, {
+  headers: {
+    Authorization: `Bearer ${token}`
+  }
+});
+
+const stats = computed(() => {
+  const reservationsList = todayReservations.value || [];
+  const totalReservations = reservationsList.length;
+  const totalCovers = reservationsList.reduce((acc: number, reservation: any) => {
+    const chairs = reservation.tables.reduce((sum: number, table: any) => sum + table.chairs.length, 0);
+    return acc + chairs;
+  }, 0);
+
+  return [
+    { label: 'Réservations aujourd\'hui', value: String(totalReservations), icon: '📅' },
+    { label: 'Couverts prévus', value: String(totalCovers), icon: '🍽️' },
+  ];
+});
 
 const showCreateRestaurantModal = ref(false);
 const newRestaurantName = ref('');
@@ -162,7 +179,7 @@ const createLocation = async () => {
           <span class="stat-label">{{ stat.label }}</span>
           <div class="stat-value-group">
             <span class="stat-value">{{ stat.value }}</span>
-            <span class="stat-change positive">{{ stat.change }}</span>
+<!--            <span v-if="stat.change" class="stat-change positive">{{ stat.change }}</span>-->
           </div>
         </div>
       </div>
@@ -414,18 +431,6 @@ const createLocation = async () => {
   font-size: 1.5rem;
   font-weight: 700;
   color: #0f172a;
-}
-
-.stat-change {
-  font-size: 0.75rem;
-  font-weight: 600;
-  padding: 0.125rem 0.375rem;
-  border-radius: 4px;
-}
-
-.stat-change.positive {
-  background: #f0fdf4;
-  color: #16a34a;
 }
 
 .main-content {

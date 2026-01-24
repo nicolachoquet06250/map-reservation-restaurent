@@ -6,6 +6,11 @@ const { data: rooms } = await useFetch('/api/rooms', {
   }
 });
 const selectedRoomId = ref<number | null>(null);
+const today = new Date();
+today.setDate(today.getDate() + 1);
+today.setHours(0, 0, 0, 0);
+const minDate = today.toISOString().split('T')[0]!;
+const selectedDate = ref<string>(minDate);
 </script>
 
 <template>
@@ -18,6 +23,16 @@ const selectedRoomId = ref<number | null>(null);
       <NuxtLink to="/dashboard" class="back-btn" title="Retour au tableau de bord">
         ←
       </NuxtLink>
+      <div class="date-picker">
+        <label for="reservation-date">Date</label>
+        <input
+            id="reservation-date"
+            v-model="selectedDate"
+            type="date"
+            class="date-input"
+            :max="minDate"
+        />
+      </div>
       <div class="rooms-list" v-if="rooms && rooms.length > 0">
         <button 
           class="btn btn-sm btn-secondary"
@@ -41,6 +56,7 @@ const selectedRoomId = ref<number | null>(null);
     <main>
       <ReservationList
         :room-id="selectedRoomId || undefined"
+        :selected-date="selectedDate"
       />
     </main>
   </div>
@@ -89,6 +105,30 @@ const selectedRoomId = ref<number | null>(null);
   display: flex;
   gap: 0.5rem;
   overflow-x: auto;
+}
+
+.date-picker {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: white;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  padding: 0.25rem 0.5rem;
+}
+
+.date-picker label {
+  font-size: 0.85rem;
+  color: #4b5563;
+  font-weight: 600;
+}
+
+.date-input {
+  border: none;
+  background: transparent;
+  font-size: 0.9rem;
+  color: #111827;
+  outline: none;
 }
 
 main {

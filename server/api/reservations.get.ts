@@ -1,5 +1,5 @@
 import { reservations, chairs, tables, rooms, locations, restaurants } from '~~/server/database/schema'
-import { eq, and } from 'drizzle-orm'
+import {eq, and, sql} from 'drizzle-orm'
 import { verifyJwt } from '~~/server/utils/auth'
 
 export default defineEventHandler(async (event) => {
@@ -7,6 +7,11 @@ export default defineEventHandler(async (event) => {
   const config = useRuntimeConfig()
   const query = getQuery(event)
   const roomId = query.roomId ? Number(query.roomId) : null
+  const selectedDate = typeof query.date === 'string' ? query.date : null
+  const parsedDate = selectedDate ? new Date(selectedDate) : null
+  if (selectedDate && parsedDate && Number.isNaN(parsedDate.getTime())) {
+    throw createError({ statusCode: 400, statusMessage: 'Invalid reservation date filter.' })
+  }
 
   // 1. Authentification
   const authHeader = getHeader(event, 'Authorization')
@@ -43,7 +48,8 @@ export default defineEventHandler(async (event) => {
   .innerJoin(restaurants, eq(locations.restaurantId, restaurants.id))
   .where(and(
     eq(restaurants.restaurateurId, restaurateurId),
-    roomId ? eq(rooms.id, roomId) : undefined
+    roomId ? eq(rooms.id, roomId) : undefined,
+    parsedDate ? eq(sql`DATE(${reservations.reservationDate})`, selectedDate) : undefined
   ))
   .orderBy(reservations.reservationDate)
 
