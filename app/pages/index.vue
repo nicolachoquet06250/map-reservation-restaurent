@@ -3,7 +3,6 @@ definePageMeta({
   layout: false,
 });
 
-const isAuthenticated = ref(false);
 const isMobile = useIsMobile();
 </script>
 

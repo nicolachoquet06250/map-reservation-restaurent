@@ -30,7 +30,29 @@ export const useEmail = () => {
     }
   }
 
+  const sendPasswordCodeEmail = async (to: string, props: { name: string; code: string }) => {
+    const html = `
+      <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #111827;">
+        <h2>Votre code de validation</h2>
+        <p>Bonjour ${props.name},</p>
+        <p>Voici le code nécessaire pour modifier votre mot de passe :</p>
+        <div style="font-size: 28px; font-weight: bold; letter-spacing: 6px; margin: 16px 0;">
+          ${props.code}
+        </div>
+        <p>Ce code est valable pendant 10 minutes. Si vous n'êtes pas à l'origine de cette demande, ignorez ce message.</p>
+      </div>
+    `
+
+    await transporter.sendMail({
+      from: config.emailFrom || '"RestauBuilder" <noreply@restaubuilder.com>',
+      to,
+      subject: 'Votre code de validation RestauBuilder',
+      html,
+    })
+  }
+
   return {
     sendWelcomeEmail,
+    sendPasswordCodeEmail
   }
 }

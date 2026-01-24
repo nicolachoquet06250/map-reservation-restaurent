@@ -1,6 +1,12 @@
 <script setup lang="ts">
-const isAuthenticated = ref(false);
 const route = useRoute();
+const token = useCookie('auth_token').value
+
+const { data: profileData } = await useFetch('/api/profile', {
+  headers: token ? { Authorization: `Bearer ${token}` } : {},
+})
+
+const isAuthenticated = computed(() => !!profileData.value);
 </script>
 
 <template>
@@ -9,13 +15,15 @@ const route = useRoute();
       <span class="brand-mark">RB</span>
       <span class="brand-name">RestauBuilder</span>
     </NuxtLink>
-    <div v-if="isAuthenticated" class="profile-card">
-      <div class="profile-text">
-        <strong>Claire Martin</strong>
-        <span>Le Jardin Urbain</span>
+    <NuxtLink to="/dashboard" v-if="isAuthenticated">
+      <div class="profile-card">
+        <div class="profile-text">
+          <strong>{{ profileData!.name }}</strong>
+          <span>{{profileData!.restaurantName}}</span>
+        </div>
+        <div class="profile-avatar">CM</div>
       </div>
-      <div class="profile-avatar">CM</div>
-    </div>
+    </NuxtLink>
     <div v-else>
       <NuxtLink v-if="route.path === '/login'" to="/register" class="btn btn-primary">S'inscrire</NuxtLink>
       <NuxtLink v-else to="/login" class="btn btn-primary">Connexion</NuxtLink>
