@@ -12,7 +12,7 @@ export const restaurateurs = mysqlTable('restaurateurs', {
 export const restaurants = mysqlTable('restaurants', {
   id: int('id').primaryKey().autoincrement(),
   restaurateurId: int('restaurateur_id').notNull(),
-  name: varchar('name', { length: 255 }).notNull(),
+  name: varchar('name', { length: 255 }).notNull().unique(),
   createdAt: timestamp('created_at').defaultNow(),
 });
 
