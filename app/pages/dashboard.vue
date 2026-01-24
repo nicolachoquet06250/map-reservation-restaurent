@@ -23,8 +23,8 @@ const { data: rooms } = await useFetch('/api/rooms?all=true', {
 const stats = [
   { label: 'Réservations aujourd\'hui', value: '12', change: '+2', icon: '📅' },
   { label: 'Couverts prévus', value: '45', change: '+5', icon: '🍽️' },
-  { label: 'Note moyenne', value: '4.8', change: '+0.1', icon: '⭐' },
-  { label: 'Chiffre d\'affaires (est.)', value: '1,240 €', change: '+15%', icon: '💰' },
+  // { label: 'Note moyenne', value: '4.8', change: '+0.1', icon: '⭐' },
+  // { label: 'Chiffre d\'affaires (est.)', value: '1,240 €', change: '+15%', icon: '💰' },
 ];
 
 const showCreateRestaurantModal = ref(false);
