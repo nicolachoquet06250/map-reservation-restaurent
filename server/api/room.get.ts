@@ -1,4 +1,4 @@
-import { rooms, chairs, reservations, tableAttributes, roomZones } from '~~/server/database/schema'
+import { rooms, chairs, reservations, tableAttributes, roomZones, layers, doors, tables } from '~~/server/database/schema'
 import {and, eq, sql, type Table} from 'drizzle-orm'
 import type {Door, Room, RoomLayer, Zone} from "~/types/room";
 
