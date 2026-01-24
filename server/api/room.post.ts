@@ -123,7 +123,7 @@ export default defineEventHandler(async (event) => {
     if (activeReservations.length > 0) {
       throw createError({
         statusCode: 400,
-        statusMessage: 'Certaines chaises supprimées ont des réservations actives. Veuillez d\'abord annuler les réservations.'
+        message: 'Certaines chaises supprimées ont des réservations actives. Veuillez d\'abord annuler les réservations.'
       })
     }
     await db.delete(chairs).where(inArray(chairs.id, chairsToDelete))

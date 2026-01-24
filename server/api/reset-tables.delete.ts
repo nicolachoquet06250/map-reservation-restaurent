@@ -15,7 +15,7 @@ export default defineEventHandler(async () => {
     console.error('Error in reset-tables:', error)
     throw createError({
       statusCode: 500,
-      statusMessage: error.message || 'Erreur lors de la réinitialisation des tables',
+      message: error.message || 'Erreur lors de la réinitialisation des tables',
     })
   }
 })

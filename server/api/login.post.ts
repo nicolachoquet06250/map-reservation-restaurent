@@ -10,22 +10,22 @@ export default defineEventHandler(async (event) => {
   const password = typeof body?.password === 'string' ? body.password : ''
 
   if (!email || !password) {
-    throw createError({ statusCode: 400, statusMessage: 'Email et mot de passe requis.' })
+    throw createError({ statusCode: 400, message: 'Email et mot de passe requis.' })
   }
 
   const matches = await db.select().from(restaurateurs).where(eq(restaurateurs.email, email)).limit(1)
   if (matches.length === 0) {
-    throw createError({ statusCode: 401, statusMessage: 'Identifiants invalides.' })
+    throw createError({ statusCode: 401, message: 'Identifiants invalides.' })
   }
 
   const user = matches[0]
   if (!verifyPassword(password, user.passwordHash)) {
-    throw createError({ statusCode: 401, statusMessage: 'Identifiants invalides.' })
+    throw createError({ statusCode: 401, message: 'Identifiants invalides.' })
   }
 
   const config = useRuntimeConfig()
   if (!config.authSecret) {
-    throw createError({ statusCode: 500, statusMessage: 'Configuration JWT manquante.' })
+    throw createError({ statusCode: 500, message: 'Configuration JWT manquante.' })
   }
 
   const { token, expiresAt } = signJwt(

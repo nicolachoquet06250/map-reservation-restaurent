@@ -9,19 +9,19 @@ export default defineEventHandler(async (event) => {
   const restaurantId = Number(query.id)
 
   if (!restaurantId) {
-    throw createError({ statusCode: 400, statusMessage: 'ID du restaurant requis.' })
+    throw createError({ statusCode: 400, message: 'ID du restaurant requis.' })
   }
 
   // 1. Authentification
   const authHeader = getHeader(event, 'Authorization')
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    throw createError({ statusCode: 401, statusMessage: 'Non authentifié.' })
+    throw createError({ statusCode: 401, message: 'Non authentifié.' })
   }
 
   const token = authHeader.split(' ')[1]
   const payload = verifyJwt(token, config.authSecret)
   if (!payload) {
-    throw createError({ statusCode: 401, statusMessage: 'Session invalide ou expirée.' })
+    throw createError({ statusCode: 401, message: 'Session invalide ou expirée.' })
   }
 
   const restaurateurId = Number(payload.sub)
@@ -32,11 +32,11 @@ export default defineEventHandler(async (event) => {
   })
 
   if (!restaurant) {
-    throw createError({ statusCode: 404, statusMessage: 'Restaurant non trouvé.' })
+    throw createError({ statusCode: 404, message: 'Restaurant non trouvé.' })
   }
 
   if (restaurant.restaurateurId !== restaurateurId) {
-    throw createError({ statusCode: 403, statusMessage: 'Accès non autorisé.' })
+    throw createError({ statusCode: 403, message: 'Accès non autorisé.' })
   }
 
   // 3. Récupérer les localisations et leurs salles

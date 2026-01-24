@@ -9,13 +9,13 @@ export default defineEventHandler(async (event) => {
 
   const authHeader = getHeader(event, 'Authorization')
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    throw createError({ statusCode: 401, statusMessage: 'Non authentifié.' })
+    throw createError({ statusCode: 401, message: 'Non authentifié.' })
   }
 
   const token = authHeader.split(' ')[1]
   const payload = verifyJwt(token, config.authSecret)
   if (!payload) {
-    throw createError({ statusCode: 401, statusMessage: 'Session invalide ou expirée.' })
+    throw createError({ statusCode: 401, message: 'Session invalide ou expirée.' })
   }
 
   const body = await readBody(event)
@@ -24,11 +24,11 @@ export default defineEventHandler(async (event) => {
   const code = typeof body?.code === 'string' ? body.code.trim() : ''
 
   if (!currentPassword || !newPassword || !code) {
-    throw createError({ statusCode: 400, statusMessage: 'Champs requis manquants.' })
+    throw createError({ statusCode: 400, message: 'Champs requis manquants.' })
   }
 
   if (newPassword.length < 8) {
-    throw createError({ statusCode: 400, statusMessage: 'Le nouveau mot de passe doit contenir 8 caractères minimum.' })
+    throw createError({ statusCode: 400, message: 'Le nouveau mot de passe doit contenir 8 caractères minimum.' })
   }
 
   const restaurateurId = Number(payload.sub)
@@ -40,15 +40,15 @@ export default defineEventHandler(async (event) => {
     .limit(1)
 
   if (!user) {
-    throw createError({ statusCode: 404, statusMessage: 'Utilisateur introuvable.' })
+    throw createError({ statusCode: 404, message: 'Utilisateur introuvable.' })
   }
 
   if (!verifyPassword(currentPassword, user.passwordHash)) {
-    throw createError({ statusCode: 401, statusMessage: 'Mot de passe actuel incorrect.' })
+    throw createError({ statusCode: 401, message: 'Mot de passe actuel incorrect.' })
   }
 
   if (!verifyVerificationCode(restaurateurId, code)) {
-    throw createError({ statusCode: 400, statusMessage: 'Code de validation invalide ou expiré.' })
+    throw createError({ statusCode: 400, message: 'Code de validation invalide ou expiré.' })
   }
 
   const passwordHash = hashPassword(newPassword)
