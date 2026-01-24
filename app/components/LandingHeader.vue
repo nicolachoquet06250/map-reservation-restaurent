@@ -1,14 +1,25 @@
 <script setup lang="ts">
 const route = useRoute();
-const token = useCookie('auth_token').value
+const tokenCookie = useCookie('auth_token')
+const token = computed(() => tokenCookie.value)
 
-const { data: profileData } = await useFetch('/api/profile', {
-  headers: token ? { Authorization: `Bearer ${token}` } : {},
+const { data: profileData, refresh: refreshProfile } = await useFetch('/api/profile', {
+  headers: { Authorization: `Bearer ${token.value}` },
+  watch: [token],
 })
 
-const isAuthenticated = computed(() => !!profileData.value);
+const isAuthenticated = computed(() => Boolean(token.value));
 const isMenuOpen = ref(false);
 const profileMenuRef = ref<HTMLElement | null>(null);
+const displayName = computed(() => profileData.value?.name ?? 'Chargement...')
+const restaurantName = computed(() => profileData.value?.restaurantName ?? '')
+const avatarInitials = computed(() => {
+  if (!profileData.value?.name) {
+    return '??'
+  }
+  const parts = profileData.value.name.trim().split(' ').filter(Boolean)
+  return parts.map((part) => part[0]?.toUpperCase()).slice(0, 2).join('')
+})
 
 const toggleMenu = () => {
   isMenuOpen.value = !isMenuOpen.value;
@@ -17,6 +28,21 @@ const toggleMenu = () => {
 const closeMenu = () => {
   isMenuOpen.value = false;
 };
+
+const handleLogout = () => {
+  tokenCookie.value = null
+  profileData.value = undefined
+  closeMenu()
+  navigateTo('/login')
+}
+
+watch(token, (value) => {
+  if (!value) {
+    profileData.value = undefined
+    return
+  }
+  refreshProfile()
+})
 
 onMounted(() => {
   const handleClickOutside = (event: MouseEvent) => {
@@ -48,14 +74,17 @@ onMounted(() => {
             @click="toggleMenu"
         >
           <div class="profile-text">
-            <strong>{{ profileData!.name }}</strong>
-            <span>{{profileData!.restaurantName}}</span>
+            <strong>{{ displayName }}</strong>
+            <span v-if="restaurantName">{{ restaurantName }}</span>
           </div>
-          <div class="profile-avatar">CM</div>
+          <div class="profile-avatar">{{ avatarInitials }}</div>
         </button>
         <div class="profile-dropdown" role="menu" :class="{ open: isMenuOpen }">
           <NuxtLink to="/dashboard" class="dropdown-link" role="menuitem" @click="closeMenu">Dashboard</NuxtLink>
           <NuxtLink to="/profile" class="dropdown-link" role="menuitem" @click="closeMenu">Profil</NuxtLink>
+          <button class="dropdown-link logout-link" type="button" role="menuitem" @click="handleLogout">
+            Déconnexion
+          </button>
         </div>
       </div>
     </div>
@@ -157,11 +186,19 @@ onMounted(() => {
   color: #0f172a;
   font-weight: 600;
   font-size: 0.9rem;
+  text-align: left;
+  background: transparent;
+  border: none;
+  cursor: pointer;
 }
 
 .dropdown-link:hover,
 .dropdown-link:focus {
   background: #f1f5f9;
+}
+
+.dropdown-link.logout-link {
+  color: #dc2626;
 }
 
 .profile-text {
