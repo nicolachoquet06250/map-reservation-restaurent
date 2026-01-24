@@ -286,13 +286,6 @@ const handlePasswordUpdate = async () => {
         <h1>Mon profil</h1>
         <p class="subtitle">Mettez à jour vos informations et sécurisez votre compte.</p>
       </div>
-      <div class="profile-card">
-        <div class="profile-card__text">
-          <strong>{{ profile.fullName || 'Restaurateur' }}</strong>
-          <span>{{ profile.restaurantName || 'Votre établissement' }}</span>
-        </div>
-        <div class="profile-card__avatar">{{ initials }}</div>
-      </div>
     </header>
 
     <div class="profile-grid">
@@ -315,10 +308,6 @@ const handlePasswordUpdate = async () => {
           <label class="field">
             <span>Email professionnel</span>
             <input v-model="profile.email" type="email" placeholder="vous@restaurant.fr" />
-          </label>
-          <label class="field full">
-            <span>Restaurant associé</span>
-            <input v-model="profile.restaurantName" type="text" placeholder="Nom de l'établissement" />
           </label>
 
           <div class="form-actions">
@@ -410,23 +399,6 @@ const handlePasswordUpdate = async () => {
   max-width: 520px;
 }
 
-.profile-card {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.75rem;
-  background: white;
-  border-radius: 999px;
-  padding: 0.4rem 0.6rem 0.4rem 1.2rem;
-  border: 1px solid #e2e8f0;
-  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.08);
-}
-
-.profile-card__text {
-  display: flex;
-  flex-direction: column;
-  line-height: 1.2;
-}
-
 .profile-card__text strong {
   font-size: 0.9rem;
   color: #0f172a;
@@ -435,18 +407,6 @@ const handlePasswordUpdate = async () => {
 .profile-card__text span {
   font-size: 0.75rem;
   color: #64748b;
-}
-
-.profile-card__avatar {
-  width: 34px;
-  height: 34px;
-  border-radius: 50%;
-  background: #e2e8f0;
-  display: grid;
-  place-items: center;
-  font-weight: 700;
-  color: #2563eb;
-  font-size: 0.75rem;
 }
 
 .profile-grid {

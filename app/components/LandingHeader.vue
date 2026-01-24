@@ -7,6 +7,29 @@ const { data: profileData } = await useFetch('/api/profile', {
 })
 
 const isAuthenticated = computed(() => !!profileData.value);
+const isMenuOpen = ref(false);
+const profileMenuRef = ref<HTMLElement | null>(null);
+
+const toggleMenu = () => {
+  isMenuOpen.value = !isMenuOpen.value;
+};
+
+const closeMenu = () => {
+  isMenuOpen.value = false;
+};
+
+onMounted(() => {
+  const handleClickOutside = (event: MouseEvent) => {
+    if (!profileMenuRef.value) return;
+    if (!profileMenuRef.value.contains(event.target as Node)) {
+      closeMenu();
+    }
+  };
+  document.addEventListener('click', handleClickOutside);
+  onBeforeUnmount(() => {
+    document.removeEventListener('click', handleClickOutside);
+  });
+});
 </script>
 
 <template>
@@ -15,15 +38,27 @@ const isAuthenticated = computed(() => !!profileData.value);
       <span class="brand-mark">RB</span>
       <span class="brand-name">RestauBuilder</span>
     </NuxtLink>
-    <NuxtLink to="/dashboard" v-if="isAuthenticated">
-      <div class="profile-card">
-        <div class="profile-text">
-          <strong>{{ profileData!.name }}</strong>
-          <span>{{profileData!.restaurantName}}</span>
+    <div v-if="isAuthenticated" class="auth-actions">
+      <div class="profile-menu" ref="profileMenuRef">
+        <button
+            class="profile-card"
+            type="button"
+            aria-haspopup="true"
+            :aria-expanded="isMenuOpen"
+            @click="toggleMenu"
+        >
+          <div class="profile-text">
+            <strong>{{ profileData!.name }}</strong>
+            <span>{{profileData!.restaurantName}}</span>
+          </div>
+          <div class="profile-avatar">CM</div>
+        </button>
+        <div class="profile-dropdown" role="menu" :class="{ open: isMenuOpen }">
+          <NuxtLink to="/dashboard" class="dropdown-link" role="menuitem" @click="closeMenu">Dashboard</NuxtLink>
+          <NuxtLink to="/profile" class="dropdown-link" role="menuitem" @click="closeMenu">Profil</NuxtLink>
         </div>
-        <div class="profile-avatar">CM</div>
       </div>
-    </NuxtLink>
+    </div>
     <div v-else>
       <NuxtLink v-if="route.path === '/login'" to="/register" class="btn btn-primary">S'inscrire</NuxtLink>
       <NuxtLink v-else to="/login" class="btn btn-primary">Connexion</NuxtLink>
@@ -72,6 +107,16 @@ const isAuthenticated = computed(() => !!profileData.value);
   letter-spacing: -0.02em;
 }
 
+.auth-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.profile-menu {
+  position: relative;
+}
+
 .profile-card {
   display: inline-flex;
   align-items: center;
@@ -81,6 +126,42 @@ const isAuthenticated = computed(() => !!profileData.value);
   padding: 0.35rem 0.45rem 0.35rem 1rem;
   box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
   border: 1px solid #f1f5f9;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.profile-dropdown {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 0.5rem);
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 16px 32px rgba(15, 23, 42, 0.12);
+  border: 1px solid #e2e8f0;
+  padding: 0.5rem;
+  min-width: 180px;
+  display: none;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.profile-menu:focus-within .profile-dropdown,
+.profile-menu:hover .profile-dropdown {
+  display: flex;
+}
+
+.dropdown-link {
+  padding: 0.5rem 0.75rem;
+  border-radius: 8px;
+  text-decoration: none;
+  color: #0f172a;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.dropdown-link:hover,
+.dropdown-link:focus {
+  background: #f1f5f9;
 }
 
 .profile-text {
