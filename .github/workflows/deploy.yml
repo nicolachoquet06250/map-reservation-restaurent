@@ -34,7 +34,8 @@ jobs:
           echo "SMTP_USER=${{secrets.SMTP_USER}}" >> .env
           echo "SMTP_PASS=${{secrets.SMTP_PASS}}" >> .env
           echo "SMTP_SECURE=${{secrets.SMTP_SECURE}}" >> .env
-          echo "EMAIL_FROM="${{secrets.EMAIL_FROM_NAME}}" <${{secrets.EMAIL_FROM}}>" >> .env
+          echo "MAIL_FROM=${{secrets.EMAIL_FROM}}" >> .env
+          echo "APP_NAME=${{secrets.EMAIL_FROM_NAME}}" >> .env
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -104,7 +105,8 @@ jobs:
           echo "SMTP_USER=${{secrets.SMTP_USER}}" >> build/.env
           echo "SMTP_PASS=${{secrets.SMTP_PASS}}" >> build/.env
           echo "SMTP_SECURE=${{secrets.SMTP_SECURE}}" >> build/.env
-          echo "EMAIL_FROM="${{secrets.EMAIL_FROM_NAME}}" <${{secrets.EMAIL_FROM}}>" >> build/.env
+          echo "MAIL_FROM=${{secrets.EMAIL_FROM}}" >> build/.env
+          echo "APP_NAME=${{secrets.EMAIL_FROM_NAME}}" >> build/.env
 
       - name: Debug artifact contents
         run: |
