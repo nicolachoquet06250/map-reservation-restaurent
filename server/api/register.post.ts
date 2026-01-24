@@ -17,21 +17,21 @@ export default defineEventHandler(async (event) => {
   const locationName = typeof body?.locationName === 'string' ? body.locationName.trim() : ''
 
   if (!email || !EMAIL_REGEX.test(email)) {
-    throw createError({ statusCode: 400, statusMessage: 'Email invalide.' })
+    throw createError({ statusCode: 400, message: 'Email invalide.' })
   }
   if (!name) {
-    throw createError({ statusCode: 400, statusMessage: 'Nom requis.' })
+    throw createError({ statusCode: 400, message: 'Nom requis.' })
   }
   if (password.length < MIN_PASSWORD_LENGTH) {
-    throw createError({ statusCode: 400, statusMessage: 'Mot de passe trop court.' })
+    throw createError({ statusCode: 400, message: 'Mot de passe trop court.' })
   }
   if (!restaurantName) {
-    throw createError({ statusCode: 400, statusMessage: 'Nom du restaurant requis.' })
+    throw createError({ statusCode: 400, message: 'Nom du restaurant requis.' })
   }
 
   const existing = await db.select({ id: restaurateurs.id }).from(restaurateurs).where(eq(restaurateurs.email, email))
   if (existing.length > 0) {
-    throw createError({ statusCode: 409, statusMessage: 'Email déjà utilisé.' })
+    throw createError({ statusCode: 409, message: 'Email déjà utilisé.' })
   }
 
   const passwordHash = hashPassword(password)
@@ -62,14 +62,14 @@ export default defineEventHandler(async (event) => {
   const activationLink = `${config.baseUrl}/activate?token=dummy-token-${result.restaurateurId}`
   
   // On ne bloque pas la réponse pour l'envoi de l'email
-  sendWelcomeEmail(email, {
+  await sendWelcomeEmail(email, {
     name,
     restaurantName,
     activationLink
   })
 
   if (!config.authSecret) {
-    throw createError({ statusCode: 500, statusMessage: 'Configuration JWT manquante.' })
+    throw createError({ statusCode: 500, message: 'Configuration JWT manquante.' })
   }
 
   const { token, expiresAt } = signJwt(

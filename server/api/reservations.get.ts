@@ -10,19 +10,19 @@ export default defineEventHandler(async (event) => {
   const selectedDate = typeof query.date === 'string' ? query.date : null
   const parsedDate = selectedDate ? new Date(selectedDate) : null
   if (selectedDate && parsedDate && Number.isNaN(parsedDate.getTime())) {
-    throw createError({ statusCode: 400, statusMessage: 'Invalid reservation date filter.' })
+    throw createError({ statusCode: 400, message: 'Invalid reservation date filter.' })
   }
 
   // 1. Authentification
   const authHeader = getHeader(event, 'Authorization')
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    throw createError({ statusCode: 401, statusMessage: 'Non authentifié.' })
+    throw createError({ statusCode: 401, message: 'Non authentifié.' })
   }
 
   const token = authHeader.split(' ')[1]
   const payload = verifyJwt(token, config.authSecret)
   if (!payload) {
-    throw createError({ statusCode: 401, statusMessage: 'Session invalide ou expirée.' })
+    throw createError({ statusCode: 401, message: 'Session invalide ou expirée.' })
   }
 
   const restaurateurId = Number(payload.sub)

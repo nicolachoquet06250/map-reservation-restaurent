@@ -9,13 +9,13 @@ export default defineEventHandler(async (event) => {
   // 1. Authentification
   const authHeader = getHeader(event, 'Authorization')
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    throw createError({ statusCode: 401, statusMessage: 'Non authentifié.' })
+    throw createError({ statusCode: 401, message: 'Non authentifié.' })
   }
 
   const token = authHeader.split(' ')[1]
   const payload = verifyJwt(token, config.authSecret)
   if (!payload) {
-    throw createError({ statusCode: 401, statusMessage: 'Session invalide ou expirée.' })
+    throw createError({ statusCode: 401, message: 'Session invalide ou expirée.' })
   }
 
   const restaurateurId = Number(payload.sub)
@@ -23,7 +23,7 @@ export default defineEventHandler(async (event) => {
   // 2. Validation des données
   const name = typeof body?.name === 'string' ? body.name.trim() : ''
   if (!name) {
-    throw createError({ statusCode: 400, statusMessage: 'Le nom de l\'établissement est requis.' })
+    throw createError({ statusCode: 400, message: 'Le nom de l\'établissement est requis.' })
   }
 
   // 3. Création du restaurant

@@ -8,13 +8,13 @@ export default defineEventHandler(async (event) => {
 
   const authHeader = getHeader(event, 'Authorization')
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    throw createError({ statusCode: 401, statusMessage: 'Non authentifié.' })
+    throw createError({ statusCode: 401, message: 'Non authentifié.' })
   }
 
   const token = authHeader.split(' ')[1]
   const payload = verifyJwt(token, config.authSecret)
   if (!payload) {
-    throw createError({ statusCode: 401, statusMessage: 'Session invalide ou expirée.' })
+    throw createError({ statusCode: 401, message: 'Session invalide ou expirée.' })
   }
 
   const restaurateurId = Number(payload.sub)
@@ -29,7 +29,7 @@ export default defineEventHandler(async (event) => {
     .limit(1)
 
   if (!user) {
-    throw createError({ statusCode: 404, statusMessage: 'Utilisateur introuvable.' })
+    throw createError({ statusCode: 404, message: 'Utilisateur introuvable.' })
   }
 
   const [restaurant] = await db

@@ -9,7 +9,7 @@ export default defineEventHandler(async (event) => {
   if (!roomId) {
     throw createError({
       statusCode: 400,
-      statusMessage: 'Missing room ID',
+      message: 'Missing room ID',
     })
   }
 
