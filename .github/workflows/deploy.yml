@@ -23,6 +23,18 @@ jobs:
           echo "DB_USER=${{secrets.DB_USER}}" >> .env
           echo "DB_PASSWORD=${{secrets.DB_PASSWORD}}" >> .env
           echo "DB_DATABASE=${{secrets.DB_NAME}}" >> .env
+          
+          echo "AUTH_SECRET=${{secrets.AUTH_SECRET}}" >> .env
+          echo "AUTH_TOKEN_TTL_SECONDS=${{secrets.AUTH_TOKEN_TTL_SECONDS}}" >> .env
+          echo "BASE_URL=${{secrets.BASE_URL}}" >> .env
+          
+          echo "# SMTP Configuration (Example for Mailtrap or similar)" >> .env
+          echo "SMTP_HOST=${{secrets.SMTP_HOST}}" >> .env
+          echo "SMTP_PORT=${{secrets.SMTP_PORT}}" >> .env
+          echo "SMTP_USER=${{secrets.SMTP_USER}}" >> .env
+          echo "SMTP_PASS=${{secrets.SMTP_PASS}}" >> .env
+          echo "SMTP_SECURE=${{secrets.SMTP_SECURE}}" >> .env
+          echo "EMAIL_FROM="${{secrets.EMAIL_FROM_NAME}}" <${{secrets.EMAIL_FROM}}>" >> .env
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -81,6 +93,18 @@ jobs:
           echo "DB_USER=${{secrets.DB_USER}}" >> build/.env
           echo "DB_PASSWORD=${{secrets.DB_PASSWORD}}" >> build/.env
           echo "DB_DATABASE=${{secrets.DB_NAME}}" >> build/.env
+          
+          echo "AUTH_SECRET=${{secrets.AUTH_SECRET}}" >> build/.env
+          echo "AUTH_TOKEN_TTL_SECONDS=${{secrets.AUTH_TOKEN_TTL_SECONDS}}" >> build/.env
+          echo "BASE_URL=${{secrets.BASE_URL}}" >> build/.env
+          
+          echo "# SMTP Configuration (Example for Mailtrap or similar)" >> build/.env
+          echo "SMTP_HOST=${{secrets.SMTP_HOST}}" >> build/.env
+          echo "SMTP_PORT=${{secrets.SMTP_PORT}}" >> build/.env
+          echo "SMTP_USER=${{secrets.SMTP_USER}}" >> build/.env
+          echo "SMTP_PASS=${{secrets.SMTP_PASS}}" >> build/.env
+          echo "SMTP_SECURE=${{secrets.SMTP_SECURE}}" >> build/.env
+          echo "EMAIL_FROM="${{secrets.EMAIL_FROM_NAME}}" <${{secrets.EMAIL_FROM}}>" >> build/.env
 
       - name: Debug artifact contents
         run: |
