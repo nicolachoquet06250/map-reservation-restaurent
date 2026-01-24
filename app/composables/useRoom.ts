@@ -1,5 +1,5 @@
 import type { Ref } from 'vue';
-import type { Door, RoomLayer, RoomZone, Table } from '~/types/room';
+import type {Door, Point, RoomLayer, RoomZone, Table} from '~/types/room';
 
 interface UseRoomOptions {
   roomId: Ref<number>;
@@ -36,6 +36,7 @@ export const useRoom = ({
 }: UseRoomOptions) => {
   const roomName = ref(initialRoomName);
   const roomSlug = ref<string | null>(null);
+  const locationId = ref<number | null>(null);
 
   const wallPoints = ref<Array<{ x: number; y: number }>>([]);
   const wallStartPoint = ref<{ x: number; y: number } | null>(null);
@@ -361,12 +362,13 @@ export const useRoom = ({
 
   const updateWallPreview = (
     event: MouseEvent,
-    getGridPointFromEvent: (event: MouseEvent) => { x: number; y: number },
-    alignToGridLine: (point: { x: number; y: number }, lastPoint: { x: number; y: number }) => { x: number; y: number }
+    getPointFromEvent: (event: MouseEvent) => Point,
+    alignToGridLine: (point: Point, lastPoint: Point) => Point
   ) => {
     if (!wallStartPoint.value || wallClosed.value) return;
-    const snapped = getGridPointFromEvent(event);
+    const snapped = getPointFromEvent(event);
     const lastPoint = wallPoints.value[wallPoints.value.length - 1] ?? wallStartPoint.value;
+    console.log(snapped, lastPoint, alignToGridLine(snapped, lastPoint));
     wallPreviewPoint.value = alignToGridLine(snapped, lastPoint);
   };
 
@@ -421,6 +423,7 @@ export const useRoom = ({
         room: {
           points: string | null;
           slug: string | null;
+          locationId: number | null;
         } | null;
         layers: RoomLayer[];
         zones: {
@@ -450,6 +453,7 @@ export const useRoom = ({
 
       if (data?.room) {
         roomSlug.value = data.room.slug || null;
+        locationId.value = data.room.locationId;
         if (data.room.points) {
           const points = data.room.points.split(' ').map(p => {
             const [x, y] = p.split(',').map(Number);
@@ -588,7 +592,7 @@ export const useRoom = ({
 
   const copyReservationLink = async () => {
     if (!roomSlug.value) return;
-    const url = `${window.location.origin}/reservation/${roomSlug.value}`;
+    const url = `${window.location.origin}/reservation/${roomSlug.value}?locationId=${locationId.value}`;
     await navigator.clipboard.writeText(url);
     const Notify = (await import('simple-notify')).default;
     // @ts-ignore

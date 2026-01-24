@@ -1,11 +1,37 @@
 <script setup lang="ts">
+import type {Door, Room, Zone, Table} from "~/types/room";
+
 const route = useRoute();
 const slug = route.params.slug as string;
+const locationId = Number(route.query.locationId);
 
-const { data: rooms } = await useFetch('/api/rooms');
-const { data: roomData, refresh: refreshRoom } = await useFetch(`/api/room?slug=${slug}`);
+const toDateTimeLocalValue = (date: Date) => {
+  const pad = (value: number) => String(value).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+};
+
+const reservationDate = ref(toDateTimeLocalValue(new Date()));
+
+const { data: rooms } = await useFetch(`/api/rooms?locationId=${locationId}`);
+const { data: roomData, refresh: refreshRoom } = await useFetch<{
+  room: Room,
+  zones: Zone[],
+  doors: Door[],
+  tables: Table[],
+}>(
+    computed(() => `/api/room?slug=${slug}&locationId=${locationId}&reservationDate=${reservationDate.value}`), {
+      watch: [() => locationId, reservationDate],
+      transform: data => ({
+        room: data.room,
+        zones: data.zones,
+        doors: data.doors,
+        tables: data.tables,
+      })
+    }
+);
 
 const selectedRoom = computed(() => roomData.value?.room || null);
+const minDate = computed(() => toDateTimeLocalValue(new Date()));
 </script>
 
 <template>
@@ -20,18 +46,30 @@ const selectedRoom = computed(() => roomData.value?.room || null);
         <NuxtLink 
           v-for="room in rooms" 
           :key="room.id"
-          :to="`/reservation/${room.slug}`"
+          :to="`/reservation/${room.slug}?locationId=${locationId}`"
           class="btn btn-sm btn-secondary"
           :class="{ active: slug === room.slug }"
         >
           {{ room.name }}
         </NuxtLink>
       </div>
+      <div class="date-picker">
+        <label for="reservation-date">Date</label>
+        <input
+            id="reservation-date"
+            v-model="reservationDate"
+            type="datetime-local"
+            class="date-input"
+            :min="minDate"
+        />
+      </div>
     </div>
 
     <main v-if="selectedRoom">
-      <ReservationView 
-        :room-id="selectedRoom.id" 
+      <ReservationView
+        :room-id="selectedRoom.id"
+        :room-data="roomData!"
+        :reservation-date="new Date(reservationDate)"
         @reserved="refreshRoom"
       />
     </main>
@@ -62,6 +100,30 @@ const selectedRoom = computed(() => roomData.value?.room || null);
   display: flex;
   gap: 0.5rem;
   overflow-x: auto;
+}
+.date-picker {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: white;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  padding: 0.25rem 0.5rem;
+}
+
+.date-picker label {
+  font-size: 0.85rem;
+  color: #4b5563;
+  font-weight: 600;
+}
+
+.date-input {
+  border: none;
+  background: transparent;
+  font-size: 0.9rem;
+  color: #111827;
+  outline: none;
 }
 
 main {

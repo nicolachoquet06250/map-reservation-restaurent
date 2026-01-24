@@ -1,9 +1,50 @@
 <script setup lang="ts">
 import 'simple-notify/dist/simple-notify.css'
 import { nextTick } from 'vue'
+import type {Room} from "~/types/room";
 
-const { data: rooms, refresh: refreshRooms } = await useFetch('/api/rooms');
-const selectedRoomId = ref<number | null>(null);
+const route = useRoute();
+const locationIdParam = computed(() => route.query.locationId ? Number(route.query.locationId) : null);
+
+const token = useCookie('auth_token').value;
+
+// Récupérer les établissements pour trouver le nom si on a un locationId
+const { data: establishments } = await useFetch('/api/locations', {
+  headers: {
+    Authorization: `Bearer ${token}`
+  }
+});
+
+const currentContext = computed(() => {
+  if (!locationIdParam.value || !establishments.value) return null;
+  const loc = establishments.value.find((e: any) => e.id === locationIdParam.value);
+  if (!loc) return null;
+  return {
+    locationName: loc.name,
+    restaurantName: loc.restaurantName
+  };
+});
+
+const { data: rooms, refresh: refreshRooms } = await useFetch<Room[]>(
+  computed(() => `/api/rooms?locationId=${locationIdParam.value || ''}`), {
+    headers: {
+      Authorization: `Bearer ${token}`
+    }
+  }
+);
+
+const isMobile = useIsMobile();
+const selectedRoomId = ref<number | null>(route.query.id ? Number(route.query.id) : null);
+
+// Synchroniser l'URL avec selectedRoomId
+watch(selectedRoomId, (newId) => {
+  if (newId) {
+    const query = { ...route.query, id: String(newId) };
+    if (String(route.query.id) !== String(newId)) {
+      navigateTo({ query });
+    }
+  }
+});
 const showResetModal = ref(false);
 const showDeleteRoomModal = ref(false);
 const roomToDeleteId = ref<number | null>(null);
@@ -15,8 +56,8 @@ const selectedRoom = computed(() => {
   return rooms.value?.find(r => r.id === selectedRoomId.value) || null;
 });
 
-// Sélectionner la première salle par défaut si elle existe
-onMounted(() => {
+// Sélectionner la première salle par défaut si elle existe et qu'aucune n'est sélectionnée par l'URL
+watchEffect(() => {
   if (rooms.value && rooms.value.length > 0 && !selectedRoomId.value) {
     selectedRoomId.value = rooms.value[0]?.id!;
   }
@@ -40,7 +81,11 @@ const confirmCreateRoom = async () => {
   try {
     const res = await $fetch('/api/room', {
       method: 'POST',
-      body: { roomName: name, tables: [] }
+      body: { 
+        roomName: name, 
+        tables: [],
+        locationId: locationIdParam.value
+      }
     });
     await refreshRooms();
     selectedRoomId.value = res.roomId;
@@ -176,8 +221,21 @@ const confirmReset = async () => {
     <Title>RestauBuilder - Mode Restaurateur</Title>
   </Head>
 
-  <div class="page-container">
+  <div v-if="isMobile" class="mobile-builder-overlay">
+    <div class="mobile-notice-card">
+      <div class="notice-icon">🖥️</div>
+      <h2>Builder Desktop Uniquement</h2>
+      <p>L'interface de conception de plan de salle nécessite un écran plus large pour une précision optimale.</p>
+      <p>Veuillez vous connecter depuis un ordinateur pour modifier vos plans.</p>
+      <NuxtLink to="/dashboard" class="btn btn-primary">Retour au Dashboard</NuxtLink>
+    </div>
+  </div>
+
+  <div v-else class="page-container">
     <div class="room-selector-bar">
+      <NuxtLink to="/dashboard" class="back-btn" title="Retour au tableau de bord">
+        ←
+      </NuxtLink>
       <div class="rooms-list">
         <button 
           v-for="room in rooms" 
@@ -201,8 +259,20 @@ const confirmReset = async () => {
         @saved="refreshRooms"
       />
     </main>
-    <div v-else class="no-room">
-      <p>Veuillez sélectionner ou créer une salle pour commencer.</p>
+    <div v-else class="no-room-container">
+      <div class="no-room-content">
+        <div class="no-room-icon">🛋️</div>
+        <h2>Aucune salle sélectionnée</h2>
+        <p v-if="rooms && rooms.length > 0">
+          Choisissez une salle dans la liste ci-dessus ou créez-en une nouvelle.
+        </p>
+        <p v-else>
+          Il n'y a pas encore de salle pour cette localisation. Commencez par en créer une !
+        </p>
+        <button class="btn btn-primary" @click="createRoom">
+          + Créer une salle
+        </button>
+      </div>
     </div>
 
     <Teleport to="body">
@@ -234,6 +304,18 @@ const confirmReset = async () => {
       <div v-if="showCreateRoomModal" class="modal-overlay" @click="showCreateRoomModal = false">
         <div class="modal-content" @click.stop>
           <h3>Nouvelle salle</h3>
+          
+          <div v-if="currentContext" class="context-info">
+            <div class="context-item">
+              <span class="context-label">Restaurant</span>
+              <span class="context-value">{{ currentContext.restaurantName }}</span>
+            </div>
+            <div class="context-item">
+              <span class="context-label">Localisation</span>
+              <span class="context-value">{{ currentContext.locationName }}</span>
+            </div>
+          </div>
+
           <div class="form-group">
             <label for="roomName">Nom de la salle</label>
             <input
@@ -260,6 +342,81 @@ const confirmReset = async () => {
 .custom-notify {
   margin-right: 40px;
 }
+
+.mobile-builder-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: #f8fafc;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  z-index: 9999;
+}
+
+.mobile-notice-card {
+  background: white;
+  padding: 3rem 2rem;
+  border-radius: 24px;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+  text-align: center;
+  max-width: 400px;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.notice-icon {
+  font-size: 4rem;
+}
+
+.context-info {
+  background: #f8fafc;
+  padding: 1rem;
+  border-radius: 12px;
+  margin-bottom: 1.5rem;
+  border: 1px solid #e2e8f0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.context-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.context-label {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+  color: #64748b;
+  font-weight: 600;
+}
+
+.context-value {
+  font-size: 0.95rem;
+  color: #1e293b;
+  font-weight: 500;
+}
+
+
+.mobile-notice-card h2 {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0;
+}
+
+.mobile-notice-card p {
+  color: #64748b;
+  line-height: 1.6;
+  margin: 0;
+}
 </style>
 
 <style scoped>
@@ -277,6 +434,29 @@ const confirmReset = async () => {
   display: flex;
   align-items: center;
   gap: 1rem;
+}
+
+.back-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background: white;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  color: #4b5563;
+  text-decoration: none;
+  font-weight: bold;
+  font-size: 1.1rem;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.back-btn:hover {
+  background: #f9fafb;
+  border-color: #2563eb;
+  color: #2563eb;
 }
 .rooms-list {
   display: flex;
@@ -297,13 +477,34 @@ main {
   flex-grow: 1;
   overflow: hidden;
 }
-.no-room {
+.no-room-container {
   flex-grow: 1;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #f9fafb;
-  color: #6b7280;
+  background: #f8fafc;
+}
+.no-room-content {
+  text-align: center;
+  background: white;
+  padding: 3rem;
+  border-radius: 24px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  max-width: 400px;
+  width: 90%;
+}
+.no-room-icon {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+}
+.no-room-content h2 {
+  margin-bottom: 1rem;
+  color: #1e293b;
+}
+.no-room-content p {
+  color: #64748b;
+  margin-bottom: 2rem;
+  line-height: 1.6;
 }
 
 /* Modal styles */

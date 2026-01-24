@@ -12,9 +12,12 @@
     "db:migrate": "drizzle-kit migrate"
   },
   "dependencies": {
+    "@vue-email/components": "^0.0.21",
+    "@vue-email/render": "^0.0.9",
     "@vueuse/core": "^14.1.0",
     "drizzle-orm": "^0.45.1",
     "mysql2": "^3.16.1",
+    "nodemailer": "^7.0.12",
     "nuxt": "^4.2.2",
     "simple-notify": "^1.0.6",
     "vue": "^3.5.27",
@@ -22,6 +25,7 @@
   },
   "devDependencies": {
     "@types/node": "^25.0.9",
+    "@types/nodemailer": "^7.0.5",
     "drizzle-kit": "^0.31.8"
   }
 }

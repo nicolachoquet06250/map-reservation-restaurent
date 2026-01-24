@@ -4,50 +4,49 @@ import type {Door, Room, Table, Zone} from "~/types/room";
 
 const props = defineProps<{
   roomId: number;
+  roomData: {
+    room: Room,
+    zones: Zone[],
+    doors: Door[],
+    tables: Table[]
+  };
+  reservationDate: Date;
 }>();
 
-const { data: roomData, refresh } = await useFetch<{
-  room: Room,
-  zones: Zone[],
-  doors: Door[],
-  tables: Table[]
-}>(() => `/api/room?id=${props.roomId}`, {
-  transform: (data) => {
-    return {
-      room: data.room,
-      zones: data.zones.map((z: any) => ({
-        ...z,
-        units: new Set(z.units.split(' '))
-      })),
-      doors: data.doors || [],
-      tables: data.tables.map((t: any) => ({
-        ...t,
-        extraAttributes: t.extraAttributes || {
-          lThicknessX: 40,
-          lThicknessY: 40,
-          uThickness: 30,
-          uBaseThickness: 30
-        }
-      }))
-    }
-  }
-});
+const roomData = computed(() => ({
+  ...props.roomData,
+  zones: props.roomData.zones.map(zone => ({
+    ...zone,
+    units: new Set((zone.units as unknown as string).split(' '))
+  })),
+}));
+
+const emit = defineEmits<{
+  (e: 'reserved'): void;
+}>();
 
 const gridSize = 20;
 const getZoneCenter = (units: Set<string>) => {
   if (units.size === 0) return { x: 0, y: 0 };
-  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  const centers: Array<{ x: number; y: number }> = [];
   units.forEach(unit => {
     const [x = 0, y = 0] = unit.split(',').map(Number);
-    if (x < minX) minX = x!;
-    if (x > maxX) maxX = x!;
-    if (y < minY) minY = y!;
-    if (y > maxY) maxY = y!;
+    centers.push({ x: x + gridSize / 2, y: y + gridSize / 2 });
   });
-  return {
-    x: (minX + maxX) / 2 + gridSize / 2,
-    y: (minY + maxY) / 2 + gridSize / 2
-  };
+
+  if (centers.length === 0) return { x: 0, y: 0 };
+
+  const average = centers.reduce(
+      (acc, point) => ({ x: acc.x + point.x, y: acc.y + point.y }),
+      { x: 0, y: 0 }
+  );
+  const target = { x: average.x / centers.length, y: average.y / centers.length };
+
+  return centers.reduce((closest, point) => {
+    const currentDistance = (point.x - target.x) ** 2 + (point.y - target.y) ** 2;
+    const closestDistance = (closest.x - target.x) ** 2 + (closest.y - target.y) ** 2;
+    return currentDistance < closestDistance ? point : closest;
+  });
 };
 const customerName = ref('');
 
@@ -160,9 +159,11 @@ const reserve = async () => {
       method: 'POST',
       body: {
         customerName: customerName.value,
-        chairIds: selectedChairs.value
+        chairIds: selectedChairs.value,
+        reservationDate: props.reservationDate
       }
     });
+    emit('reserved')
     // @ts-ignore
     new Notify({
       status: 'success',
@@ -175,7 +176,6 @@ const reserve = async () => {
       customClass: 'custom-notify'
     });
     selectedChairs.value = [];
-    refresh();
   } catch (e) {
     console.error(e);
     // @ts-ignore
@@ -192,9 +192,68 @@ const reserve = async () => {
     });
   }
 };
+
+const tooltip = useTemplateRef('tooltip');
+
+const OFFSET_X = 12;
+const OFFSET_Y = 14;
+
+function openTip(text: string) {
+  tooltip.value!.textContent = text;
+  tooltip.value!.dataset.open = "true";
+  tooltip.value!.setAttribute('aria-hidden', 'false');
+}
+
+function closeTip() {
+  tooltip.value!.dataset.open = "false";
+  tooltip.value!.setAttribute('aria-hidden', 'true');
+  tooltip.value!.style.transform = 'translate(-9999px, -9999px)';
+}
+
+function moveTip(clientX: number, clientY: number) {
+  // Mesure après mise à jour du texte (sinon mauvais calcul)
+  const rect = tooltip.value!.getBoundingClientRect();
+  let x = clientX + OFFSET_X;
+  let y = clientY - rect.height - OFFSET_Y; // au-dessus du curseur
+
+  // Flip vertical si on dépasse en haut
+  if (y < 8) y = clientY + OFFSET_Y;
+
+  // Clamp horizontal si on dépasse à droite/gauche
+  const maxX = window.innerWidth - rect.width - 8;
+  if (x > maxX) x = maxX;
+  if (x < 8) x = 8;
+
+  tooltip.value!.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px)`;
+}
+
+const handleMouseOver = (e: MouseEvent) => {
+  const el = (e.target as SVGElement).closest('[data-tooltip]');
+  if (!el) return;
+  openTip(el.getAttribute('data-tooltip') || '');
+  moveTip(e.clientX, e.clientY);
+}
+
+const handleMouseMove = (e: MouseEvent) => {
+  if (tooltip.value!.dataset.open !== "true") return;
+  moveTip(e.clientX, e.clientY);
+}
+
+const handleMouseOut = (e: MouseEvent) => {
+  // Fermer uniquement si on sort d'un élément tooltippé
+  const from = (e.target as SVGElement).closest?.('[data-tooltip]');
+  if (!from) return;
+  closeTip();
+}
+
+onMounted(() => {
+  window.addEventListener('blur', closeTip);
+})
 </script>
 
 <template>
+  <div ref="tooltip" class="svg-tooltip" role="tooltip" aria-hidden="true"/>
+
   <div class="reservation-container">
     <div class="header">
       <h1 class="header-title">Réservez votre place</h1>
@@ -251,6 +310,10 @@ const reserve = async () => {
               fill-opacity="0.3"
               stroke="white"
               stroke-width="0.5"
+              @mouseover="handleMouseOver"
+              @mousemove="handleMouseMove"
+              @mouseout="handleMouseOut"
+              :data-tooltip="zone.name"
             />
             <g v-if="zone.name" class="zone-label-group" style="opacity: 0.6;">
               <rect
@@ -333,6 +396,8 @@ const reserve = async () => {
               </template>
             </g>
           </g>
+
+          {{roomData?.tables}}
 
           <g v-for="table in roomData?.tables" :key="table.id">
             <g :transform="`rotate(${table.rotation || 0}, ${Number(table.x) + Number(table.width) / 2}, ${Number(table.y) + Number(table.height) / 2})`">
@@ -534,4 +599,21 @@ const reserve = async () => {
   fill: #666;
   pointer-events: none;
 }
+
+.svg-tooltip {
+  position: fixed;
+  z-index: 9999;
+  pointer-events: none;
+  padding: 6px 10px;
+  border-radius: 8px;
+  font: 12px/1.2 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  background: rgba(20, 20, 20, 0.92);
+  color: #fff;
+  box-shadow: 0 6px 24px rgba(0,0,0,0.25);
+  opacity: 0;
+  transform: translate(-9999px, -9999px);
+  transition: opacity 80ms linear;
+  white-space: nowrap;
+}
+.svg-tooltip[data-open="true"] { opacity: 1; }
 </style>

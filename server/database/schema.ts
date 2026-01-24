@@ -1,7 +1,36 @@
+import { relations } from 'drizzle-orm';
 import { mysqlTable, varchar, int, float, timestamp } from 'drizzle-orm/mysql-core';
+
+export const restaurateurs = mysqlTable('restaurateurs', {
+  id: int('id').primaryKey().autoincrement(),
+  email: varchar('email', { length: 255 }).notNull().unique(),
+  name: varchar('name', { length: 255 }).notNull(),
+  passwordHash: varchar('password_hash', { length: 255 }).notNull(),
+  createdAt: timestamp('created_at').defaultNow(),
+});
+
+export const restaurants = mysqlTable('restaurants', {
+  id: int('id').primaryKey().autoincrement(),
+  restaurateurId: int('restaurateur_id').notNull(),
+  name: varchar('name', { length: 255 }).notNull(),
+  createdAt: timestamp('created_at').defaultNow(),
+});
+
+export const locations = mysqlTable('locations', {
+  id: int('id').primaryKey().autoincrement(),
+  restaurantId: int('restaurant_id').notNull(),
+  name: varchar('name', { length: 255 }).notNull(),
+  addressLine: varchar('address_line', { length: 255 }),
+  city: varchar('city', { length: 100 }),
+  postalCode: varchar('postal_code', { length: 30 }),
+  country: varchar('country', { length: 80 }),
+  phone: varchar('phone', { length: 50 }),
+  createdAt: timestamp('created_at').defaultNow(),
+});
 
 export const rooms = mysqlTable('rooms', {
   id: int('id').primaryKey().autoincrement(),
+  locationId: int('location_id'),
   name: varchar('name', { length: 255 }).notNull(),
   slug: varchar('slug', { length: 255 }).notNull().unique(),
   points: varchar('points', { length: 2000 }), // Liste de points x,y séparés par des espaces
@@ -71,3 +100,89 @@ export const doors = mysqlTable('doors', {
   rotation: float('rotation').default(0),
   type: varchar('type', { length: 20 }).default('simple'), // 'simple', 'double'
 });
+
+export const restaurateursRelations = relations(restaurateurs, ({ many }) => ({
+  restaurants: many(restaurants),
+}));
+
+export const restaurantsRelations = relations(restaurants, ({ one, many }) => ({
+  restaurateur: one(restaurateurs, {
+    fields: [restaurants.restaurateurId],
+    references: [restaurateurs.id],
+  }),
+  locations: many(locations),
+}));
+
+export const locationsRelations = relations(locations, ({ one, many }) => ({
+  restaurant: one(restaurants, {
+    fields: [locations.restaurantId],
+    references: [restaurants.id],
+  }),
+  rooms: many(rooms),
+}));
+
+export const roomsRelations = relations(rooms, ({ one, many }) => ({
+  location: one(locations, {
+    fields: [rooms.locationId],
+    references: [locations.id],
+  }),
+  layers: many(layers),
+  tables: many(tables),
+  roomZones: many(roomZones),
+  doors: many(doors),
+}));
+
+export const layersRelations = relations(layers, ({ one }) => ({
+  room: one(rooms, {
+    fields: [layers.roomId],
+    references: [rooms.id],
+  }),
+}));
+
+export const tablesRelations = relations(tables, ({ one, many }) => ({
+  room: one(rooms, {
+    fields: [tables.roomId],
+    references: [rooms.id],
+  }),
+  attributes: one(tableAttributes, {
+    fields: [tables.id],
+    references: [tableAttributes.tableId],
+  }),
+  chairs: many(chairs),
+}));
+
+export const tableAttributesRelations = relations(tableAttributes, ({ one }) => ({
+  table: one(tables, {
+    fields: [tableAttributes.tableId],
+    references: [tables.id],
+  }),
+}));
+
+export const chairsRelations = relations(chairs, ({ one, many }) => ({
+  table: one(tables, {
+    fields: [chairs.tableId],
+    references: [tables.id],
+  }),
+  reservations: many(reservations),
+}));
+
+export const reservationsRelations = relations(reservations, ({ one }) => ({
+  chair: one(chairs, {
+    fields: [reservations.chairId],
+    references: [chairs.id],
+  }),
+}));
+
+export const roomZonesRelations = relations(roomZones, ({ one }) => ({
+  room: one(rooms, {
+    fields: [roomZones.roomId],
+    references: [rooms.id],
+  }),
+}));
+
+export const doorsRelations = relations(doors, ({ one }) => ({
+  room: one(rooms, {
+    fields: [doors.roomId],
+    references: [rooms.id],
+  }),
+}));

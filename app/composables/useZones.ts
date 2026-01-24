@@ -103,18 +103,25 @@ export const useZones = ({
 
   const getZoneCenter = (units: Set<string>) => {
     if (units.size === 0) return { x: 0, y: 0 };
-    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    const centers: Array<{ x: number; y: number }> = [];
     units.forEach(unit => {
       const [x = 0, y = 0] = unit.split(',').map(Number);
-      if (x < minX) minX = x!;
-      if (x > maxX) maxX = x!;
-      if (y < minY) minY = y!;
-      if (y > maxY) maxY = y!;
+      centers.push({ x: x + gridSize / 2, y: y + gridSize / 2 });
     });
-    return {
-      x: (minX + maxX) / 2 + gridSize / 2,
-      y: (minY + maxY) / 2 + gridSize / 2
-    };
+
+    if (centers.length === 0) return { x: 0, y: 0 };
+
+    const average = centers.reduce(
+        (acc, point) => ({ x: acc.x + point.x, y: acc.y + point.y }),
+        { x: 0, y: 0 }
+    );
+    const target = { x: average.x / centers.length, y: average.y / centers.length };
+
+    return centers.reduce((closest, point) => {
+      const currentDistance = (point.x - target.x) ** 2 + (point.y - target.y) ** 2;
+      const closestDistance = (closest.x - target.x) ** 2 + (closest.y - target.y) ** 2;
+      return currentDistance < closestDistance ? point : closest;
+    });
   };
 
   const handleZoneMouseMove = (event: MouseEvent, getGridCellFromEvent: (event: MouseEvent) => { x: number; y: number }) => {
