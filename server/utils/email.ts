@@ -2,28 +2,44 @@ import nodemailer from 'nodemailer'
 import { render } from '@vue-email/render'
 import WelcomeEmail from '../emails/WelcomeEmail.vue'
 
+type MailEnv = {
+  SMTP_HOST?: string
+  SMTP_PORT?: string
+  SMTP_USER?: string
+  SMTP_PASS?: string
+  SMTP_SECURE?: string
+  MAIL_FROM?: string
+  APP_NAME?: string
+}
+
 export const useEmail = () => {
-  const config = useRuntimeConfig()
+  const env: MailEnv = process.env as any
 
   const transporter = nodemailer.createTransport({
-    host: config.smtpHost,
-    port: Number(config.smtpPort),
-    secure: config.smtpSecure === 'true',
+    host: env.SMTP_HOST,
+    port: Number(env.SMTP_PORT),
+    secure: env.SMTP_SECURE === 'true',
     auth: {
-      user: config.smtpUser,
-      pass: config.smtpPass,
+      user: env.SMTP_USER,
+      pass: env.SMTP_PASS,
     },
   })
 
   const sendWelcomeEmail = async (to: string, props: { name: string; restaurantName: string; activationLink: string }) => {
     try {
       const html = await render(WelcomeEmail, props)
+      const text = await render(WelcomeEmail, props, {
+        plainText: true
+      })
+
+      const env: MailEnv = process.env as any
+      const appName = env.APP_NAME || 'RestauBuilder'
+      const from = env.MAIL_FROM ? `${appName}<${env.MAIL_FROM}>` : `${appName} <no-reply@localhost>`
 
       await transporter.sendMail({
-        from: config.emailFrom || '"RestauBuilder" <noreply@restaubuilder.com>',
-        to,
+        from, to,
         subject: 'Bienvenue chez RestauBuilder !',
-        html,
+        html, text
       })
     } catch (error) {
       console.error('Failed to send welcome email:', error)
@@ -43,9 +59,13 @@ export const useEmail = () => {
       </div>
     `
 
+    const env: MailEnv = process.env as any
+    const appName = env.APP_NAME || 'RestauBuilder'
+    const from = env.MAIL_FROM ? `${appName}<${env.MAIL_FROM}>` : `${appName} <no-reply@localhost>`
+
+
     await transporter.sendMail({
-      from: config.emailFrom || '"RestauBuilder" <noreply@restaubuilder.com>',
-      to,
+      from, to,
       subject: 'Votre code de validation RestauBuilder',
       html,
     })
