@@ -30,7 +30,7 @@ const selectedDate = ref<string>(minDate);
             v-model="selectedDate"
             type="date"
             class="date-input"
-            :max="minDate"
+            :min="minDate"
         />
       </div>
       <div class="rooms-list" v-if="rooms && rooms.length > 0">
