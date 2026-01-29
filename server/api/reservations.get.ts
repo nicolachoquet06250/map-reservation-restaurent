@@ -49,7 +49,8 @@ export default defineEventHandler(async (event) => {
   .where(and(
     eq(restaurants.restaurateurId, restaurateurId),
     roomId ? eq(rooms.id, roomId) : undefined,
-    parsedDate ? eq(sql`DATE(${reservations.reservationDate})`, selectedDate) : undefined
+    parsedDate ? sql`${reservations.reservationDate} > DATE_SUB(${selectedDate}, INTERVAL 2 HOUR)` : undefined,
+    parsedDate ? sql`${reservations.reservationDate} <= ${selectedDate}` : undefined
   ))
   .orderBy(reservations.reservationDate)
 
