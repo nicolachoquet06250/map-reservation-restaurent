@@ -28,9 +28,9 @@ const selectedDate = ref<string>(minDate);
         <input
             id="reservation-date"
             v-model="selectedDate"
-            type="date"
+            type="datetime-local"
             class="date-input"
-            :min="minDate"
+            :min="`${minDate}T00:00`"
         />
       </div>
       <div class="rooms-list" v-if="rooms && rooms.length > 0">
