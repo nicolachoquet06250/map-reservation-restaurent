@@ -40,6 +40,11 @@ export const useRoom = ({
 
   const wallPoints = ref<Array<{ x: number; y: number }>>([]);
   const wallStartPoint = ref<{ x: number; y: number } | null>(null);
+  const wallPreview = ref<{ point: Point | null; axisLock: 'horizontal' | 'vertical' | null; isClosing: boolean }>({
+    point: null,
+    axisLock: null,
+    isClosing: false
+  });
   const wallPreviewPoint = ref<{ x: number; y: number } | null>(null);
   const wallClosed = ref(false);
   const wallSelected = ref(false);
@@ -72,14 +77,9 @@ export const useRoom = ({
     }
     return segments;
   });
-
-  const wallPolylinePoints = computed(() => {
-    const points = wallPoints.value.map(point => `${point.x},${point.y}`);
-    if (wallPreviewPoint.value && !wallClosed.value) {
-      points.push(`${wallPreviewPoint.value.x},${wallPreviewPoint.value.y}`);
-    }
-    return points.join(' ');
-  });
+  const clearWallPreview = () => {
+    wallPreview.value = { point: null, axisLock: null, isClosing: false };
+  };
 
   const takeSnapshot = () => {
     undoStack.value.push(JSON.stringify({
@@ -149,6 +149,7 @@ export const useRoom = ({
   const performResetWalls = async () => {
     wallPoints.value = [];
     wallStartPoint.value = null;
+    clearWallPreview();
     wallPreviewPoint.value = null;
     wallClosed.value = false;
     wallSelected.value = false;
@@ -362,14 +363,23 @@ export const useRoom = ({
 
   const updateWallPreview = (
     event: MouseEvent,
-    getPointFromEvent: (event: MouseEvent) => Point,
+    getRawPointFromEvent: (event: MouseEvent) => Point,
+    snapToGrid: (point: Point) => Point,
     alignToGridLine: (point: Point, lastPoint: Point) => Point
   ) => {
-    if (!wallStartPoint.value || wallClosed.value) return;
-    const snapped = getPointFromEvent(event);
+    if (!wallStartPoint.value || wallClosed.value) {
+      clearWallPreview();
+      return;
+    }
+    const rawPoint = getRawPointFromEvent(event);
+    const snapped = snapToGrid(rawPoint);
     const lastPoint = wallPoints.value[wallPoints.value.length - 1] ?? wallStartPoint.value;
-    console.log(snapped, lastPoint, alignToGridLine(snapped, lastPoint));
-    wallPreviewPoint.value = alignToGridLine(snapped, lastPoint);
+    const aligned = alignToGridLine(snapped, lastPoint);
+    const axisLock = Math.abs(snapped.x - lastPoint.x) >= Math.abs(snapped.y - lastPoint.y) ? 'horizontal' : 'vertical';
+    const isClosing = wallPoints.value.length > 1
+        && aligned.x === wallStartPoint.value.x
+        && aligned.y === wallStartPoint.value.y;
+    wallPreview.value = { point: aligned, axisLock, isClosing };
   };
 
   const startDragWallSegment = (event: MouseEvent, segment: { index1: number; index2: number; isHorizontal: boolean }) => {
@@ -394,7 +404,7 @@ export const useRoom = ({
     if (!wallStartPoint.value) {
       wallStartPoint.value = snapped;
       wallPoints.value = [snapped];
-      wallPreviewPoint.value = snapped;
+      wallPreview.value = { point: snapped, axisLock: null, isClosing: false };
       return;
     }
 
@@ -409,12 +419,12 @@ export const useRoom = ({
     ) {
       wallClosed.value = true;
       wallSelected.value = true;
-      wallPreviewPoint.value = null;
+      clearWallPreview();
       return;
     }
 
     wallPoints.value.push(alignedPoint);
-    wallPreviewPoint.value = alignedPoint;
+    wallPreview.value = { point: alignedPoint, axisLock: null, isClosing: false };
   };
 
   const loadRoom = async () => {
@@ -622,13 +632,12 @@ export const useRoom = ({
     redoStack,
     wallPoints,
     wallStartPoint,
-    wallPreviewPoint,
+    wallPreview,
     wallClosed,
     wallSelected,
     showDeleteWallModal,
     draggingWallSegment,
     wallSegments,
-    wallPolylinePoints,
     doors,
     draggingDoor,
     rotatingDoor,

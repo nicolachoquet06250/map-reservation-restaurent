@@ -6,8 +6,7 @@ const props = defineProps<{
   closed: boolean,
   points: Point[],
   selected: boolean,
-  polylinePoints?: string,
-  previewPoint?: Point | null,
+  preview?: { point: Point | null; axisLock: 'horizontal' | 'vertical' | null; isClosing: boolean } | null,
   segments?: { p1?: Point, p2?: Point, isHorizontal: boolean }[],
 }>();
 
@@ -25,22 +24,20 @@ defineEmits<{
   (e: 'start-drag', evt: MouseEvent, sgm: Segment): void,
 }>();
 
-const previewPolyline = computed(() => {
-  if (props.closed) return '';
+const draftPolyline = computed(() => {
+  if (props.closed || props.points.length < 2) return '';
+  return props.points.map(point => `${point.x},${point.y}`).join(' ');
+});
 
-  if (props.previewPoint) {
-    const points = [...props.points, props.previewPoint];
-    if (points.length < 2) return '';
-    return points.map(point => `${point.x},${point.y}`).join(' ');
-  }
-
-  if (props.polylinePoints?.trim().length) {
-    return props.polylinePoints.trim();
-  }
-
-  const points = props.points.map(point => `${point.x},${point.y}`);
-  if (points.length < 2) return '';
-  return points.join(' ');
+const previewSegment = computed(() => {
+  if (props.closed) return null;
+  if (!props.preview?.point || props.points.length === 0) return null;
+  const lastPoint = props.points[props.points.length - 1];
+  if (!lastPoint) return null;
+  return {
+    p1: lastPoint,
+    p2: props.preview.point
+  };
 });
 </script>
 
@@ -54,11 +51,37 @@ const previewPolyline = computed(() => {
       @mousedown="$emit('select', $event)"
       @click="$emit('click', $event)"
   />
-  <polyline
-      v-else-if="previewPolyline"
-      :points="previewPolyline"
-      class="wall-shape wall-preview"
-  />
+  <template v-else>
+    <polyline
+        v-if="draftPolyline"
+        :points="draftPolyline"
+        class="wall-draft"
+    />
+    <line
+        v-if="previewSegment"
+        :x1="previewSegment.p1.x"
+        :y1="previewSegment.p1.y"
+        :x2="previewSegment.p2.x"
+        :y2="previewSegment.p2.y"
+        class="wall-preview-segment"
+        :class="preview?.axisLock"
+    />
+    <circle
+        v-if="preview?.point"
+        :cx="preview.point.x"
+        :cy="preview.point.y"
+        r="4"
+        class="wall-preview-point"
+        :class="{ closing: preview?.isClosing }"
+    />
+    <circle
+        v-if="preview?.isClosing && points.length"
+        :cx="points[0]!.x"
+        :cy="points[0]!.y"
+        r="10"
+        class="wall-preview-close"
+    />
+  </template>
 
   <!-- Segments de mur interactifs pour le déplacement -->
   <template v-if="closed && selected">
@@ -100,9 +123,40 @@ const previewPolyline = computed(() => {
   stroke: #007bff;
   fill: rgba(0, 123, 255, 0.1);
 }
-.wall-shape.wall-preview {
+.wall-draft {
   fill: none;
-  stroke-dasharray: 6 4;
+  stroke: rgba(43, 43, 43, 0.6);
+  stroke-width: 3;
+  stroke-linecap: square;
+  stroke-linejoin: miter;
+  pointer-events: none;
+}
+.wall-preview-segment {
+  stroke: #007bff;
+  stroke-width: 3;
+  stroke-dasharray: 5 6;
+  pointer-events: none;
+}
+.wall-preview-segment.horizontal {
+  stroke: #17a2b8;
+}
+.wall-preview-segment.vertical {
+  stroke: #ff9800;
+}
+.wall-preview-point {
+  fill: #007bff;
+  stroke: #fff;
+  stroke-width: 1.5;
+  pointer-events: none;
+}
+.wall-preview-point.closing {
+  fill: #28a745;
+}
+.wall-preview-close {
+  fill: none;
+  stroke: rgba(40, 167, 69, 0.6);
+  stroke-width: 2;
+  stroke-dasharray: 4 4;
   pointer-events: none;
 }
 .wall-segment-handle {
